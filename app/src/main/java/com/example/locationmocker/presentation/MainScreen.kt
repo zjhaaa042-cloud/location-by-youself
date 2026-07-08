@@ -18,10 +18,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.AssistChip
@@ -38,15 +40,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.locationmocker.domain.model.PlaybackMode
+import com.example.locationmocker.domain.model.RoutePoint
 import com.example.locationmocker.domain.model.SimulationState
+import com.example.locationmocker.domain.track.TrackOrientation
 
 @Composable
 fun MainScreen(
@@ -56,6 +62,8 @@ fun MainScreen(
     val uiState by viewModel.uiState.collectAsState()
     var controlsExpanded by rememberSaveable { mutableStateOf(false) }
     var mapLoaded by rememberSaveable { mutableStateOf(false) }
+    var trackDetectionRequestId by rememberSaveable { mutableStateOf(0) }
+    var trackDetectionTarget by remember { mutableStateOf<RoutePoint?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         AmapView(
@@ -63,10 +71,15 @@ fun MainScreen(
             devicePoint = uiState.devicePoint,
             currentPoint = uiState.currentPoint,
             traveledPoints = uiState.traveledPoints,
-            routeMode = uiState.editMode == EditMode.Route,
+            routeMode = uiState.editMode != EditMode.Fixed,
+            showPointMarkers = uiState.editMode != EditMode.Track,
+            enableTrackSegmentation = uiState.editMode == EditMode.Track,
+            trackDetectionRequestId = trackDetectionRequestId,
+            trackDetectionTarget = trackDetectionTarget,
             onMapLoaded = { mapLoaded = true },
             onDeviceLocationChanged = viewModel::onDeviceLocationChanged,
             onMapTapped = viewModel::onMapTapped,
+            onTrackDetectionRequested = viewModel::detectTrackWithSegment,
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -122,6 +135,16 @@ fun MainScreen(
                 onEditModeChanged = viewModel::setEditMode,
                 onSpeedChanged = viewModel::setSpeed,
                 onPlaybackModeChanged = viewModel::setPlaybackMode,
+                onTrackOrientationChanged = viewModel::setTrackOrientation,
+                onDetectTrack = {
+                    val target = uiState.trackDetectionTarget()
+                    if (target == null) {
+                        viewModel.detectTrackNearSelected()
+                    } else {
+                        trackDetectionTarget = target
+                        trackDetectionRequestId += 1
+                    }
+                },
                 onPlay = viewModel::play,
                 onPause = viewModel::pause,
                 onResume = viewModel::resume,
@@ -130,11 +153,11 @@ fun MainScreen(
                 onUndo = viewModel::undoLastPoint,
                 onClear = viewModel::clearPoints,
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .widthIn(max = 460.dp)
+                    .widthIn(max = 560.dp)
                     .navigationBarsPadding()
-                    .padding(start = 12.dp, end = 84.dp, bottom = 12.dp)
+                    .padding(start = 12.dp, end = 96.dp, bottom = 12.dp)
                     .shadow(8.dp, RoundedCornerShape(8.dp)),
             )
         }
@@ -158,28 +181,30 @@ private fun ReadinessBar(
                 text = readinessText(readiness),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.width(6.dp))
             IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Refresh, contentDescription = "刷新状态")
+                Icon(Icons.Default.Refresh, contentDescription = "\u5237\u65b0\u72b6\u6001")
             }
         }
 
         if (!readiness.ready) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!readiness.hasLocationPermission) {
-                    AssistChip(onClick = onRequestPermissions, label = { Text("定位权限") })
+                    AssistChip(onClick = onRequestPermissions, label = { Text("\u5b9a\u4f4d\u6743\u9650") })
                 }
                 if (!readiness.locationEnabled) {
-                    AssistChip(onClick = onOpenLocationSettings, label = { Text("定位服务") })
+                    AssistChip(onClick = onOpenLocationSettings, label = { Text("\u5b9a\u4f4d\u670d\u52a1") })
                 }
                 if (!readiness.mockAppSelected) {
-                    AssistChip(onClick = onOpenDeveloperOptions, label = { Text("模拟位置应用") })
+                    AssistChip(onClick = onOpenDeveloperOptions, label = { Text("\u6a21\u62df\u4f4d\u7f6e\u5e94\u7528") })
                 }
             }
         } else if (!readiness.hasNotificationPermission) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssistChip(onClick = onRequestPermissions, label = { Text("开启通知") })
+                AssistChip(onClick = onRequestPermissions, label = { Text("\u5f00\u542f\u901a\u77e5") })
             }
         }
     }
@@ -208,29 +233,29 @@ private fun FloatingPlaybackControls(
             when (state.simulationState) {
                 SimulationState.Running -> {
                     IconButton(onClick = onPause) {
-                        Icon(Icons.Default.Pause, contentDescription = "暂停")
+                        Icon(Icons.Default.Pause, contentDescription = "\u6682\u505c")
                     }
                 }
 
                 SimulationState.Paused -> {
                     IconButton(onClick = onResume) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "继续")
+                        Icon(Icons.Default.PlayArrow, contentDescription = "\u7ee7\u7eed")
                     }
                 }
 
                 else -> {
                     IconButton(onClick = onPlay) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "开始")
+                        Icon(Icons.Default.PlayArrow, contentDescription = "\u5f00\u59cb")
                     }
                 }
             }
 
             IconButton(onClick = onStop) {
-                Icon(Icons.Default.Stop, contentDescription = "停止")
+                Icon(Icons.Default.Stop, contentDescription = "\u505c\u6b62")
             }
 
             Button(onClick = onTogglePanel) {
-                Text("控制")
+                Text("\u63a7\u5236")
             }
         }
     }
@@ -242,6 +267,8 @@ private fun SecondaryControlPanel(
     onEditModeChanged: (EditMode) -> Unit,
     onSpeedChanged: (Float) -> Unit,
     onPlaybackModeChanged: (PlaybackMode) -> Unit,
+    onTrackOrientationChanged: (TrackOrientation) -> Unit,
+    onDetectTrack: () -> Unit,
     onPlay: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -257,43 +284,68 @@ private fun SecondaryControlPanel(
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
         tonalElevation = 4.dp,
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 FilterChip(
                     selected = state.editMode == EditMode.Fixed,
                     onClick = { onEditModeChanged(EditMode.Fixed) },
-                    label = { Text("定点") },
+                    label = { Text("\u5b9a\u70b9") },
                 )
                 FilterChip(
                     selected = state.editMode == EditMode.Route,
                     onClick = { onEditModeChanged(EditMode.Route) },
-                    label = { Text("路线 ${state.points.size}") },
+                    label = { Text("\u8def\u7ebf ${state.points.size}") },
+                )
+                FilterChip(
+                    selected = state.editMode == EditMode.Track,
+                    onClick = { onEditModeChanged(EditMode.Track) },
+                    label = { Text("\u64cd\u573a") },
+                    leadingIcon = {
+                        Icon(Icons.Default.DirectionsRun, contentDescription = null, modifier = Modifier.size(16.dp))
+                    },
                 )
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onUndo, enabled = state.points.isNotEmpty()) {
-                    Icon(Icons.Default.Undo, contentDescription = "撤销上一个点")
+                IconButton(onClick = onUndo, enabled = state.points.isNotEmpty() && state.editMode != EditMode.Track) {
+                    Icon(Icons.Default.Undo, contentDescription = "\u64a4\u9500\u4e0a\u4e00\u4e2a\u70b9")
                 }
                 IconButton(onClick = onClear, enabled = state.points.isNotEmpty()) {
-                    Icon(Icons.Default.Delete, contentDescription = "清空点位")
+                    Icon(Icons.Default.Delete, contentDescription = "\u6e05\u7a7a\u70b9\u4f4d")
                 }
                 OutlinedButton(onClick = onCollapse) {
-                    Text("收起")
+                    Text("\u6536\u8d77")
                 }
             }
 
-            Spacer(Modifier.height(4.dp))
+            if (state.editMode == EditMode.Track) {
+                Spacer(Modifier.height(8.dp))
+                TrackStatusRow(
+                    trackState = state.trackState,
+                    onDetectTrack = onDetectTrack,
+                )
+                Spacer(Modifier.height(6.dp))
+                TrackOrientationRow(
+                    orientation = state.trackOrientation,
+                    onTrackOrientationChanged = onTrackOrientationChanged,
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
             Text(
-                text = "速度 ${state.speedKmh.toInt()} km/h",
+                text = if (state.editMode == EditMode.Track) {
+                    "\u6162\u8dd1\u901f\u5ea6 ${"%.1f".format(state.speedKmh)} km/h"
+                } else {
+                    "\u901f\u5ea6 ${state.speedKmh.toInt()} km/h"
+                },
                 style = MaterialTheme.typography.labelLarge,
             )
             Slider(
                 value = state.speedKmh,
                 onValueChange = onSpeedChanged,
-                valueRange = 5f..120f,
-                steps = 22,
+                valueRange = if (state.editMode == EditMode.Track) 6f..12f else 5f..120f,
+                steps = if (state.editMode == EditMode.Track) 11 else 22,
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -301,7 +353,7 @@ private fun SecondaryControlPanel(
                     FilterChip(
                         selected = state.playbackMode == mode,
                         onClick = { onPlaybackModeChanged(mode) },
-                        label = { Text(mode.name) },
+                        label = { Text(mode.displayName()) },
                     )
                 }
             }
@@ -312,25 +364,34 @@ private fun SecondaryControlPanel(
                     text = state.statusText(),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 when (state.simulationState) {
                     SimulationState.Running -> {
                         IconButton(onClick = onPause) {
-                            Icon(Icons.Default.Pause, contentDescription = "暂停")
+                            Icon(Icons.Default.Pause, contentDescription = "\u6682\u505c")
                         }
                     }
 
                     SimulationState.Paused -> {
                         IconButton(onClick = onResume) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "继续")
+                            Icon(Icons.Default.PlayArrow, contentDescription = "\u7ee7\u7eed")
                         }
                     }
 
                     else -> {
                         Button(onClick = onPlay) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null)
+                            Icon(
+                                imageVector = if (state.editMode == EditMode.Track) {
+                                    Icons.Default.DirectionsRun
+                                } else {
+                                    Icons.Default.PlayArrow
+                                },
+                                contentDescription = null,
+                            )
                             Spacer(Modifier.width(4.dp))
-                            Text("开始")
+                            Text(if (state.editMode == EditMode.Track) "\u5f00\u59cb\u8dd1\u6b65" else "\u5f00\u59cb")
                         }
                     }
                 }
@@ -338,9 +399,64 @@ private fun SecondaryControlPanel(
                 OutlinedButton(onClick = onStop) {
                     Icon(Icons.Default.Stop, contentDescription = null)
                     Spacer(Modifier.width(4.dp))
-                    Text("停止")
+                    Text("\u505c\u6b62")
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TrackOrientationRow(
+    orientation: TrackOrientation,
+    onTrackOrientationChanged: (TrackOrientation) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "\u8dd1\u9053\u65b9\u5411",
+            style = MaterialTheme.typography.labelLarge,
+            maxLines = 1,
+        )
+        FilterChip(
+            selected = orientation == TrackOrientation.Vertical,
+            onClick = { onTrackOrientationChanged(TrackOrientation.Vertical) },
+            label = { Text("\u7ad6\u5411") },
+        )
+        FilterChip(
+            selected = orientation == TrackOrientation.Horizontal,
+            onClick = { onTrackOrientationChanged(TrackOrientation.Horizontal) },
+            label = { Text("\u6a2a\u5411") },
+        )
+    }
+}
+
+@Composable
+private fun TrackStatusRow(
+    trackState: TrackUiState,
+    onDetectTrack: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Default.Route, contentDescription = null, modifier = Modifier.size(18.dp))
+        Text(
+            text = trackState.statusText(),
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        OutlinedButton(
+            onClick = onDetectTrack,
+            enabled = trackState != TrackUiState.Detecting,
+        ) {
+            Text(if (trackState == TrackUiState.Detecting) "\u8bc6\u522b\u4e2d" else "\u8bc6\u522b\u64cd\u573a")
         }
     }
 }
@@ -348,30 +464,47 @@ private fun SecondaryControlPanel(
 private fun readinessText(readiness: Readiness): String {
     return if (readiness.ready) {
         if (readiness.hasNotificationPermission) {
-            "已准备好模拟定位"
+            "\u5df2\u51c6\u5907\u597d\u6a21\u62df\u5b9a\u4f4d"
         } else {
-            "已准备好，建议开启通知"
+            "\u5df2\u51c6\u5907\u597d\uff0c\u5efa\u8bae\u5f00\u542f\u901a\u77e5"
         }
     } else {
         val missing = readiness.missingItems()
-            .filterNot { it == "通知权限" }
-            .joinToString("、")
-        "还需要：$missing"
+            .filterNot { it == "\u901a\u77e5\u6743\u9650" }
+            .joinToString("\u3001")
+        "\u8fd8\u9700\u8981\uff1a$missing"
     }
 }
 
 private fun buildMapStatusText(mapLoaded: Boolean, hasDeviceLocation: Boolean): String {
-    val mapText = if (mapLoaded) "高德底图已加载" else "高德底图加载中"
-    val locationText = if (hasDeviceLocation) "已定位" else "定位中"
-    return "$mapText · $locationText"
+    val mapText = if (mapLoaded) "\u9ad8\u5fb7\u5e95\u56fe\u5df2\u52a0\u8f7d" else "\u9ad8\u5fb7\u5e95\u56fe\u52a0\u8f7d\u4e2d"
+    val locationText = if (hasDeviceLocation) "\u5df2\u5b9a\u4f4d" else "\u5b9a\u4f4d\u4e2d"
+    return "$mapText \u00b7 $locationText"
+}
+
+private fun PlaybackMode.displayName(): String = when (this) {
+    PlaybackMode.Once -> "\u5355\u6b21"
+    PlaybackMode.Loop -> "\u5faa\u73af"
+    PlaybackMode.PingPong -> "\u5f80\u8fd4"
+}
+
+private fun TrackUiState.statusText(): String = when (this) {
+    TrackUiState.NotSelected -> "\u70b9\u51fb\u64cd\u573a\u9644\u8fd1\u4f4d\u7f6e"
+    is TrackUiState.ReadyToDetect -> "\u70b9\u51fb\u201c\u8bc6\u522b\u64cd\u573a\u201d\u6216\u91cd\u65b0\u70b9\u9009\u9644\u8fd1\u4f4d\u7f6e"
+    TrackUiState.Detecting -> "\u6b63\u5728\u8bc6\u522b\u9644\u8fd1\u64cd\u573a"
+    is TrackUiState.Detected -> "\u5df2\u8bc6\u522b\uff1a$name"
+    is TrackUiState.Failed -> message.ifBlank { "\u672a\u8bc6\u522b\u5230\u64cd\u573a" }
 }
 
 private fun MainUiState.statusText(): String = when (val state = simulationState) {
-    SimulationState.Idle -> "点击地图选择位置"
-    SimulationState.Ready -> selectedPoint?.let { "%.5f, %.5f".format(it.lat, it.lon) } ?: "已就绪"
+    SimulationState.Idle -> if (editMode == EditMode.Track) "\u70b9\u51fb\u64cd\u573a\u9644\u8fd1\u4f4d\u7f6e" else "\u70b9\u51fb\u5730\u56fe\u9009\u62e9\u4f4d\u7f6e"
+    SimulationState.Ready -> when (editMode) {
+        EditMode.Track -> trackState.statusText()
+        else -> selectedPoint?.let { "%.5f, %.5f".format(it.lat, it.lon) } ?: "\u5df2\u5c31\u7eea"
+    }
     SimulationState.Running -> currentPoint?.let {
-        "正在移动：%.5f, %.5f".format(it.lat, it.lon)
-    } ?: "正在输出模拟定位"
-    SimulationState.Paused -> "已暂停"
+        "\u6b63\u5728\u79fb\u52a8\uff1a%.5f, %.5f".format(it.lat, it.lon)
+    } ?: "\u6b63\u5728\u8f93\u51fa\u6a21\u62df\u5b9a\u4f4d"
+    SimulationState.Paused -> "\u5df2\u6682\u505c"
     is SimulationState.Error -> state.message
 }

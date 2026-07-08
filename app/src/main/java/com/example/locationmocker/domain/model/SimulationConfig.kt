@@ -5,4 +5,5 @@ data class SimulationConfig(
     val speedKmh: Float,
     val mode: PlaybackMode,
     val updateIntervalMs: Long = 1_000L,
+    val routeProfile: RouteProfile = RouteProfile.Manual,
 )

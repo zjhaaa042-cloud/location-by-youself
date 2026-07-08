@@ -15,11 +15,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.locationmocker.data.SettingsRepository
+import com.example.locationmocker.data.TrackDetector
 import com.example.locationmocker.domain.model.PlaybackMode
 import com.example.locationmocker.domain.model.RoutePoint
+import com.example.locationmocker.domain.model.RouteProfile
 import com.example.locationmocker.domain.model.SimulationConfig
 import com.example.locationmocker.domain.model.SimulationState
 import com.example.locationmocker.domain.route.RouteMath
+import com.example.locationmocker.domain.track.SegmentedTrack
+import com.example.locationmocker.domain.track.TrackDetectionResult
+import com.example.locationmocker.domain.track.TrackOrientation
+import com.example.locationmocker.domain.track.TrackRoutePlanner
 import com.example.locationmocker.service.MockLocationService
 import com.example.locationmocker.service.SimulationProgressBus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +37,15 @@ import kotlinx.coroutines.launch
 enum class EditMode {
     Fixed,
     Route,
+    Track,
+}
+
+sealed interface TrackUiState {
+    data object NotSelected : TrackUiState
+    data class ReadyToDetect(val point: RoutePoint) : TrackUiState
+    data object Detecting : TrackUiState
+    data class Detected(val name: String, val center: RoutePoint) : TrackUiState
+    data class Failed(val message: String) : TrackUiState
 }
 
 data class Readiness(
@@ -43,10 +58,10 @@ data class Readiness(
         get() = hasLocationPermission && locationEnabled && mockAppSelected
 
     fun missingItems(): List<String> = buildList {
-        if (!hasLocationPermission) add("定位权限")
-        if (!locationEnabled) add("系统定位开关")
-        if (!mockAppSelected) add("模拟位置应用")
-        if (!hasNotificationPermission) add("通知权限")
+        if (!hasLocationPermission) add("\u5b9a\u4f4d\u6743\u9650")
+        if (!locationEnabled) add("\u7cfb\u7edf\u5b9a\u4f4d\u5f00\u5173")
+        if (!mockAppSelected) add("\u6a21\u62df\u4f4d\u7f6e\u5e94\u7528")
+        if (!hasNotificationPermission) add("\u901a\u77e5\u6743\u9650")
     }
 }
 
@@ -60,6 +75,8 @@ data class MainUiState(
     val devicePoint: RoutePoint? = null,
     val currentPoint: RoutePoint? = null,
     val traveledPoints: List<RoutePoint> = emptyList(),
+    val trackState: TrackUiState = TrackUiState.NotSelected,
+    val trackOrientation: TrackOrientation = TrackOrientation.Vertical,
 ) {
     val selectedPoint: RoutePoint?
         get() = points.lastOrNull()
@@ -72,6 +89,9 @@ class MainViewModel(
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
+    private val trackDetector = TrackDetector(application.applicationContext)
+    private val trackRoutePlanner = TrackRoutePlanner()
+
     init {
         viewModelScope.launch {
             settingsRepository.settings.collect { saved ->
@@ -80,6 +100,7 @@ class MainViewModel(
                         speedKmh = saved.speedKmh,
                         playbackMode = saved.playbackMode,
                         points = saved.points,
+                        trackOrientation = saved.trackOrientation,
                         simulationState = it.simulationState.preserveActiveOrReady(saved.points),
                     )
                 }
@@ -99,9 +120,7 @@ class MainViewModel(
                             },
                         )
                     } else if (progress.errorMessage != null) {
-                        state.copy(
-                            simulationState = SimulationState.Error(progress.errorMessage),
-                        )
+                        state.copy(simulationState = SimulationState.Error(progress.errorMessage))
                     } else {
                         val nextTrail = if (progress.isRoute) {
                             state.traveledPoints.appendIfMoved(progress.point)
@@ -136,22 +155,89 @@ class MainViewModel(
     }
 
     fun setEditMode(mode: EditMode) {
-        _uiState.update { it.copy(editMode = mode) }
+        _uiState.update {
+            if (mode == EditMode.Track) {
+                it.copy(
+                    editMode = mode,
+                    speedKmh = it.speedKmh.coerceIn(6f, 12f),
+                    playbackMode = PlaybackMode.Loop,
+                )
+            } else {
+                it.copy(editMode = mode)
+            }
+        }
     }
 
-    fun onMapTapped(lat: Double, lon: Double) {
+    fun onMapTapped(lat: Double, lon: Double, segmentedTrack: SegmentedTrack? = null) {
         val newPoint = RoutePoint(lat = lat, lon = lon)
-        val updatedPoints = when (_uiState.value.editMode) {
+        val editMode = _uiState.value.editMode
+        val updatedPoints = when (editMode) {
             EditMode.Fixed -> listOf(newPoint)
             EditMode.Route -> _uiState.value.points + newPoint
+            EditMode.Track -> listOf(newPoint)
         }
         _uiState.update {
             it.copy(
                 points = updatedPoints,
                 simulationState = SimulationState.Ready,
+                trackState = if (editMode == EditMode.Track) {
+                    TrackUiState.ReadyToDetect(newPoint)
+                } else {
+                    it.trackState
+                },
             )
         }
         viewModelScope.launch { settingsRepository.savePoints(updatedPoints) }
+        if (editMode == EditMode.Track) {
+            detectTrack(newPoint, segmentedTrack)
+        }
+    }
+
+    fun detectTrackNearSelected() {
+        val point = _uiState.value.trackDetectionAnchor() ?: run {
+            _uiState.update {
+                it.copy(simulationState = SimulationState.Error("\u8bf7\u5148\u5728\u5730\u56fe\u4e0a\u70b9\u51fb\u64cd\u573a\u9644\u8fd1\u4f4d\u7f6e"))
+            }
+            return
+        }
+        detectTrack(point, null)
+    }
+
+    fun detectTrackWithSegment(origin: RoutePoint, segmentedTrack: SegmentedTrack?) {
+        detectTrack(origin, segmentedTrack)
+    }
+
+    fun setTrackOrientation(orientation: TrackOrientation) {
+        val state = _uiState.value
+        val center = when (val trackState = state.trackState) {
+            is TrackUiState.Detected -> trackState.center
+            is TrackUiState.ReadyToDetect -> trackState.point
+            else -> state.selectedPoint
+        }
+
+        _uiState.update { it.copy(trackOrientation = orientation) }
+        viewModelScope.launch { settingsRepository.saveTrackOrientation(orientation) }
+
+        if (state.editMode == EditMode.Track && center != null) {
+            val route = trackRoutePlanner.buildCounterClockwiseRoute(
+                center = center,
+                orientation = orientation,
+            )
+            _uiState.update {
+                it.copy(
+                    points = route,
+                    simulationState = SimulationState.Ready,
+                    trackState = when (it.trackState) {
+                        is TrackUiState.Detected -> it.trackState
+                        else -> TrackUiState.Detected("\u624b\u52a8\u8dd1\u9053", center)
+                    },
+                )
+            }
+            viewModelScope.launch {
+                settingsRepository.savePoints(route)
+                settingsRepository.saveTrack("\u624b\u52a8\u8dd1\u9053", center)
+            }
+        }
     }
 
     fun undoLastPoint() {
@@ -160,6 +246,11 @@ class MainViewModel(
             it.copy(
                 points = updated,
                 simulationState = if (updated.isEmpty()) SimulationState.Idle else SimulationState.Ready,
+                trackState = if (it.editMode == EditMode.Track && updated.isEmpty()) {
+                    TrackUiState.NotSelected
+                } else {
+                    it.trackState
+                },
             )
         }
         viewModelScope.launch { settingsRepository.savePoints(updated) }
@@ -167,14 +258,30 @@ class MainViewModel(
 
     fun clearPoints() {
         _uiState.update {
-            it.copy(points = emptyList(), simulationState = SimulationState.Idle)
+            it.copy(
+                points = emptyList(),
+                simulationState = SimulationState.Idle,
+                trackState = TrackUiState.NotSelected,
+            )
         }
         viewModelScope.launch { settingsRepository.savePoints(emptyList()) }
     }
 
     fun setSpeed(speedKmh: Float) {
-        val clamped = speedKmh.coerceIn(5f, 120f)
+        val state = _uiState.value
+        val clamped = if (state.editMode == EditMode.Track) {
+            speedKmh.coerceIn(6f, 12f)
+        } else {
+            speedKmh.coerceIn(5f, 120f)
+        }
         _uiState.update { it.copy(speedKmh = clamped) }
+        if (
+            state.editMode == EditMode.Track &&
+            (state.simulationState == SimulationState.Running || state.simulationState == SimulationState.Paused)
+        ) {
+            val context = getApplication<Application>()
+            context.startService(MockLocationService.updateSpeedIntent(context, clamped))
+        }
         viewModelScope.launch { settingsRepository.saveSpeed(clamped) }
     }
 
@@ -188,9 +295,9 @@ class MainViewModel(
         val state = _uiState.value
         if (!state.readiness.ready) {
             val missingItems = state.readiness.missingItems()
-                .filterNot { it == "通知权限" }
-                .joinToString("、")
-            _uiState.update { it.copy(simulationState = SimulationState.Error("还需要完成：$missingItems")) }
+                .filterNot { it == "\u901a\u77e5\u6743\u9650" }
+                .joinToString("\u3001")
+            _uiState.update { it.copy(simulationState = SimulationState.Error("\u8fd8\u9700\u8981\u5b8c\u6210\uff1a$missingItems")) }
             return
         }
 
@@ -198,7 +305,7 @@ class MainViewModel(
         val intent = when (state.editMode) {
             EditMode.Fixed -> {
                 val point = state.selectedPoint ?: run {
-                    _uiState.update { it.copy(simulationState = SimulationState.Error("请先在地图上选择一个位置")) }
+                    _uiState.update { it.copy(simulationState = SimulationState.Error("\u8bf7\u5148\u5728\u5730\u56fe\u4e0a\u9009\u62e9\u4e00\u4e2a\u4f4d\u7f6e")) }
                     return
                 }
                 MockLocationService.startFixedIntent(context, point)
@@ -206,7 +313,7 @@ class MainViewModel(
 
             EditMode.Route -> {
                 if (state.points.size < 2) {
-                    _uiState.update { it.copy(simulationState = SimulationState.Error("路线模式至少需要 2 个途经点")) }
+                    _uiState.update { it.copy(simulationState = SimulationState.Error("\u8def\u7ebf\u6a21\u5f0f\u81f3\u5c11\u9700\u8981 2 \u4e2a\u9014\u7ecf\u70b9")) }
                     return
                 }
                 MockLocationService.startRouteIntent(
@@ -215,6 +322,23 @@ class MainViewModel(
                         points = state.points,
                         speedKmh = state.speedKmh,
                         mode = state.playbackMode,
+                    ),
+                )
+            }
+
+            EditMode.Track -> {
+                if (state.points.size < 2 || state.trackState !is TrackUiState.Detected) {
+                    _uiState.update { it.copy(simulationState = SimulationState.Error("\u8bf7\u5148\u8bc6\u522b\u64cd\u573a\u5e76\u751f\u6210\u8dd1\u9053")) }
+                    return
+                }
+                MockLocationService.startRouteIntent(
+                    context,
+                    SimulationConfig(
+                        points = state.points,
+                        speedKmh = state.speedKmh.coerceIn(6f, 12f),
+                        mode = state.playbackMode,
+                        updateIntervalMs = TRACK_RUNNING_INTERVAL_MS,
+                        routeProfile = RouteProfile.TrackRunning,
                     ),
                 )
             }
@@ -266,6 +390,49 @@ class MainViewModel(
         val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         getApplication<Application>().startActivity(intent)
+    }
+
+    private fun detectTrack(origin: RoutePoint, segmentedTrack: SegmentedTrack? = null) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    trackState = TrackUiState.Detecting,
+                    simulationState = SimulationState.Ready,
+                )
+            }
+
+            if (segmentedTrack != null && segmentedTrack.confidence >= 55) {
+                val route = trackRoutePlanner.buildCounterClockwiseRoute(
+                    center = segmentedTrack.center,
+                    orientation = segmentedTrack.orientation,
+                    rotationDegrees = segmentedTrack.rotationDegrees,
+                    outerWidthMeters = segmentedTrack.outerWidthMeters,
+                    outerHeightMeters = segmentedTrack.outerHeightMeters,
+                )
+                _uiState.update {
+                    it.copy(
+                        points = route,
+                        trackState = TrackUiState.Detected("\u5730\u56fe\u5206\u5272\u8dd1\u9053", segmentedTrack.center),
+                        simulationState = SimulationState.Ready,
+                        playbackMode = PlaybackMode.Loop,
+                        speedKmh = it.speedKmh.coerceIn(6f, 12f),
+                        trackOrientation = segmentedTrack.orientation,
+                    )
+                }
+                settingsRepository.savePoints(route)
+                settingsRepository.saveTrack("\u5730\u56fe\u5206\u5272\u8dd1\u9053", segmentedTrack.center)
+                settingsRepository.saveTrackOrientation(segmentedTrack.orientation)
+                return@launch
+            }
+
+            _uiState.update {
+                it.copy(
+                    points = listOf(origin),
+                    trackState = TrackUiState.Failed("\u672a\u80fd\u7a33\u5b9a\u8bc6\u522b\u8089\u7c89\u8272\u8dd1\u9053\uff0c\u8bf7\u653e\u5927\u5230\u6574\u6761\u8dd1\u9053\u6e05\u6670\u53ef\u89c1\u540e\u91cd\u8bd5"),
+                    simulationState = SimulationState.Error("\u672a\u80fd\u7a33\u5b9a\u8bc6\u522b\u8dd1\u9053"),
+                )
+            }
+        }
     }
 
     private fun Context.readiness(): Readiness {
@@ -331,6 +498,16 @@ private fun List<RoutePoint>.appendIfMoved(point: RoutePoint): List<RoutePoint> 
     }
 }
 
+fun MainUiState.trackDetectionTarget(): RoutePoint? = trackDetectionAnchor()
+
+private fun MainUiState.trackDetectionAnchor(): RoutePoint? {
+    return when (val state = trackState) {
+        is TrackUiState.Detected -> state.center
+        is TrackUiState.ReadyToDetect -> state.point
+        else -> selectedPoint
+    }
+}
+
 private fun SimulationState.preserveActiveOrReady(points: List<RoutePoint>): SimulationState {
     return when (this) {
         SimulationState.Running,
@@ -349,3 +526,5 @@ class MainViewModelFactory(
         return MainViewModel(application, settingsRepository) as T
     }
 }
+
+private const val TRACK_RUNNING_INTERVAL_MS = 250L

@@ -1,15 +1,17 @@
-# Location Mocker
+# 定位模拟器
 
-Android 原生定位模拟工具，使用 Kotlin、Jetpack Compose、Material 3、高德地图 SDK 和 Android 官方 Mock Location API。
+安卓原生定位模拟工具，使用 Kotlin、Jetpack Compose、Material 3、高德地图 SDK 和系统模拟定位接口。
 
 ## 功能
 
 - 点击地图任意位置，输出固定模拟定位。
 - 路线模式下点击多个途经点，生成本地平滑轨迹。
 - 支持 5-120 km/h 速度控制。
-- 支持 Once、Loop、PingPong 三种路线回放模式。
+- 支持单次、循环、往返三种路线回放模式。
 - 通过前台定位服务持续输出模拟位置，通知栏提供暂停和停止操作。
 - 高德地图用于底图显示和点选，写入系统 mock location 前会转换为 WGS84 坐标，减少国内地图坐标偏移。
+- 操场模式支持点选操场附近位置后识别 POI，自动生成逆时针跑步路线。
+- 操场跑步支持 6-12 km/h 自然速度波动，以及每圈 1-3m 的平滑路径漂移。
 
 ## 高德地图 Key
 
@@ -32,10 +34,10 @@ com.example.locationmocker
 1. 用 Android Studio 打开项目目录。
 2. 等待 Gradle Sync 完成后安装到真机。
 3. 在手机上开启“开发者选项”。
-4. 进入“选择模拟位置信息应用”，选择 `Location Mocker`。
+4. 进入“选择模拟位置信息应用”，选择 `定位模拟器`。
 5. 授予定位权限，并确保系统定位服务已开启。
 
-本项目只使用 Android 官方 Mock Location API，不包含 ROOT、隐藏伪装、绕过检测或规避第三方风控的逻辑。系统和第三方应用可以识别 mock location。
+本项目只使用系统官方模拟定位接口，不包含 ROOT、隐藏伪装、绕过检测或规避第三方风控的逻辑。系统和第三方应用可以识别模拟定位。
 
 ## 验证
 

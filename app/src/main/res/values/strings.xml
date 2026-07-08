@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Location Mocker</string>
-    <string name="mock_service_channel">定位模拟运行中</string>
+    <string name="app_name">&#x5B9A;&#x4F4D;&#x6A21;&#x62DF;&#x5668;</string>
+    <string name="mock_service_channel">&#x5B9A;&#x4F4D;&#x6A21;&#x62DF;&#x8FD0;&#x884C;&#x4E2D;</string>
 </resources>

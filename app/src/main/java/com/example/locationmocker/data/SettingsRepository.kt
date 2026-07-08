@@ -1,12 +1,14 @@
 package com.example.locationmocker.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.locationmocker.domain.model.PlaybackMode
 import com.example.locationmocker.domain.model.RoutePoint
+import com.example.locationmocker.domain.track.TrackOrientation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -16,12 +18,20 @@ data class SavedSettings(
     val speedKmh: Float = 5f,
     val playbackMode: PlaybackMode = PlaybackMode.Once,
     val points: List<RoutePoint> = emptyList(),
+    val trackName: String = "",
+    val trackCenter: RoutePoint? = null,
+    val naturalRunEnabled: Boolean = true,
+    val trackOrientation: TrackOrientation = TrackOrientation.Vertical,
 )
 
 class SettingsRepository(private val context: Context) {
     private val speedKey = floatPreferencesKey("speed_kmh")
     private val playbackModeKey = stringPreferencesKey("playback_mode")
     private val routePointsKey = stringPreferencesKey("route_points")
+    private val trackNameKey = stringPreferencesKey("track_name")
+    private val trackCenterKey = stringPreferencesKey("track_center")
+    private val naturalRunEnabledKey = booleanPreferencesKey("natural_run_enabled")
+    private val trackOrientationKey = stringPreferencesKey("track_orientation")
 
     val settings: Flow<SavedSettings> = context.dataStore.data.map { preferences ->
         SavedSettings(
@@ -30,6 +40,12 @@ class SettingsRepository(private val context: Context) {
                 PlaybackMode.entries.firstOrNull { it.name == raw }
             } ?: PlaybackMode.Once,
             points = preferences[routePointsKey]?.let(::decodePoints).orEmpty(),
+            trackName = preferences[trackNameKey].orEmpty(),
+            trackCenter = preferences[trackCenterKey]?.let(::decodePoints)?.firstOrNull(),
+            naturalRunEnabled = preferences[naturalRunEnabledKey] ?: true,
+            trackOrientation = preferences[trackOrientationKey]?.let { raw ->
+                TrackOrientation.entries.firstOrNull { it.name == raw }
+            } ?: TrackOrientation.Vertical,
         )
     }
 
@@ -43,6 +59,18 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun savePoints(points: List<RoutePoint>) {
         context.dataStore.edit { it[routePointsKey] = encodePoints(points) }
+    }
+
+    suspend fun saveTrack(name: String, center: RoutePoint, naturalRunEnabled: Boolean = true) {
+        context.dataStore.edit {
+            it[trackNameKey] = name
+            it[trackCenterKey] = encodePoints(listOf(center))
+            it[naturalRunEnabledKey] = naturalRunEnabled
+        }
+    }
+
+    suspend fun saveTrackOrientation(orientation: TrackOrientation) {
+        context.dataStore.edit { it[trackOrientationKey] = orientation.name }
     }
 
     private fun encodePoints(points: List<RoutePoint>): String = points.joinToString(";") { point ->
