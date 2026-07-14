@@ -13,6 +13,10 @@
 - 操场模式：点击操场区域后，尝试识别跑道并生成逆时针 400 米跑步轨迹。
 - 自然跑步：操场路线支持 6-12 km/h 的速度波动、1-3 米左右漂移、每圈略微不同的轨迹。
 - 实时显示：地图上显示当前模拟位置、路线和运动轨迹。
+- 地图交互：支持运行中拖动、双指缩放、点击选点，以及一键回到设备当前位置。
+- 地点工具：支持经纬度搜索、最近选点查看和收藏页面空状态。
+- 状态反馈：区分等待启动、运行中、已暂停、已停止、权限未就绪和定位异常等状态。
+- 深色与适配：支持系统深色模式、小屏幕和横屏布局。
 - 后台运行：使用前台定位服务持续输出模拟位置，通知栏提供运行状态。
 
 ## 技术栈
@@ -24,6 +28,8 @@
 - 定位：Android `LocationManager` Mock Location API
 - 后台：Foreground Service，类型为 `location`
 - 本地存储：DataStore Preferences
+- 最低系统：Android 8.0（API 26）
+- 编译目标：Android API 36、JDK 17
 
 ## App 结构
 
@@ -37,7 +43,10 @@ app/src/main/java/com/example/locationmocker
 │   ├── route    普通路线采样、速度换算、回放推进
 │   └── track    操场识别结果、跑道规划、自然跑步采样
 ├── presentation
-│   └── Compose 页面、地图控件、底部控制面板、ViewModel
+│   ├── ui/components  通用导航、状态、权限、位置和模拟控制组件
+│   ├── ui/screens     地图、搜索、收藏/历史和设置页面
+│   ├── ui/theme       亮色/深色主题与统一设计变量
+│   └── 地图控件、主页面编排和 ViewModel
 └── service
     └── MockLocationService 和 MockLocationController
 ```
@@ -46,6 +55,8 @@ app/src/main/java/com/example/locationmocker
 
 - `MainActivity.kt`：应用入口。
 - `presentation/MainScreen.kt`：主界面和地图交互。
+- `presentation/AmapView.kt`：高德地图生命周期、手势、覆盖物增量渲染和相机控制。
+- `presentation/ui/screens/MapHomeScreen.kt`：地图首页覆盖层和当前位置按钮。
 - `presentation/MainViewModel.kt`：界面状态、模式切换、服务指令。
 - `service/MockLocationService.kt`：前台服务，负责持续输出模拟位置。
 - `service/MockLocationController.kt`：封装系统 Mock Location Provider。
@@ -73,7 +84,7 @@ AMAP_API_KEY=你的高德地图Key
 ### 方式一：Android Studio 安装
 
 1. 用 Android Studio 打开项目目录。
-2. 等待 Gradle Sync 完成。
+2. 选择 Android Studio 内置 JDK 17，等待 Gradle Sync 完成。
 3. 确认 `local.properties` 已配置 `AMAP_API_KEY`。
 4. 连接 Android 手机并开启 USB 调试。
 5. 顶部设备栏选择真机。
@@ -117,8 +128,10 @@ app/build/outputs/apk/debug/app-debug.apk
 ### 定点模式
 
 1. 选择“定点”。
-2. 点击地图上的目标位置。
+2. 单指拖动或双指缩放地图，点击地图上的目标位置。
 3. 点击开始后，系统模拟定位会输出到该点。
+
+地图右侧的定位按钮会将视图移动到设备当前真实位置；设备位置尚未获取时按钮保持禁用。模拟运行期间仍可拖动和缩放地图，实时位置更新不会强制抢回地图视角。
 
 ### 路线模式
 
@@ -136,6 +149,8 @@ app/build/outputs/apk/debug/app-debug.apk
 5. 识别成功后点击“开始跑步”。
 
 操场模式会生成逆时针路线，并模拟自然跑步时的速度波动和左右偏移。跑步过程中也可以继续调节速度。
+
+速度设置值是基础速度，不是每秒完全固定的瞬时值。每圈会随机产生约 `±0.45 km/h` 的偏移，圈内还会叠加约 `±0.5 km/h` 的平滑周期波动；最终速度限制在 `6-12 km/h`。例如基础速度为 `8.5 km/h` 时，瞬时目标速度通常约为 `7.55-9.45 km/h`。
 
 ## 操场识别注意事项
 
@@ -175,6 +190,8 @@ Manifest 中使用的主要权限：
 .\gradlew.bat testDebugUnitTest
 ```
 
+项目在 `gradle.properties` 中使用 Kotlin 进程内编译，以规避 Windows 中文用户名路径可能导致的 Kotlin Worker/Daemon 类路径错误。Compose 依赖通过 BOM 统一管理，请勿为 Material3、Animation 或 UI 模块单独指定冲突版本。
+
 真机验收建议覆盖：
 
 - 定点模拟是否准确。
@@ -194,6 +211,18 @@ Manifest 中使用的主要权限：
 ### 地图显示了，但定位不动
 
 确认本应用已经在开发者选项中被设置为“模拟位置信息应用”，并且已经授予定位权限。
+
+### 地图无法拖动或缩放
+
+请先确认安装的是最新构建，并关闭覆盖地图的“模拟参数”底部面板。当前版本采用覆盖物增量更新，运行模拟时不会反复清空地图；单指拖动、双指缩放和点击选点均可在运行中使用。
+
+### Android Studio 只显示 `compileDebugKotlin` 失败
+
+确认 Gradle JDK 为 17，并保留 `gradle.properties` 中的 `kotlin.compiler.execution.strategy=in-process`。如果日志只有空的 `e:` 而没有源码位置，通常是 Windows 中文用户路径下的 Kotlin Worker 启动问题，而不是 Kotlin 语法错误。
+
+### 启动时出现 Compose `NoSuchMethodError`
+
+不要单独降级或升级 Compose 子模块。项目当前使用 Compose BOM `2024.02.02`，用于统一 Material3、Animation 和 UI 运行库版本。
 
 ### 其他地图 App 看不到位置变化
 
