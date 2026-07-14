@@ -37,6 +37,7 @@ fun MainScreen(
     var mapLoaded by rememberSaveable { mutableStateOf(false) }
     var mapLoadSlow by rememberSaveable { mutableStateOf(false) }
     var wasStopped by rememberSaveable { mutableStateOf(false) }
+    var locateDeviceRequestId by rememberSaveable { mutableIntStateOf(0) }
     var trackDetectionRequestId by rememberSaveable { mutableIntStateOf(0) }
     var trackDetectionTarget by remember { mutableStateOf<RoutePoint?>(null) }
 
@@ -66,26 +67,6 @@ fun MainScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AmapView(
-            points = uiState.points,
-            devicePoint = uiState.devicePoint,
-            currentPoint = uiState.currentPoint,
-            traveledPoints = uiState.traveledPoints,
-            routeMode = uiState.editMode != EditMode.Fixed,
-            showPointMarkers = uiState.editMode != EditMode.Track,
-            enableTrackSegmentation = uiState.editMode == EditMode.Track,
-            trackDetectionRequestId = trackDetectionRequestId,
-            trackDetectionTarget = trackDetectionTarget,
-            onMapLoaded = { mapLoaded = true },
-            onDeviceLocationChanged = viewModel::onDeviceLocationChanged,
-            onMapTapped = { lat, lon, segmentedTrack ->
-                wasStopped = false
-                viewModel.onMapTapped(lat, lon, segmentedTrack)
-            },
-            onTrackDetectionRequested = viewModel::detectTrackWithSegment,
-            modifier = Modifier.fillMaxSize(),
-        )
-
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
@@ -95,6 +76,27 @@ fun MainScreen(
                 }
             },
         ) { innerPadding ->
+            AmapView(
+                points = uiState.points,
+                devicePoint = uiState.devicePoint,
+                currentPoint = uiState.currentPoint,
+                traveledPoints = uiState.traveledPoints,
+                routeMode = uiState.editMode != EditMode.Fixed,
+                showPointMarkers = uiState.editMode != EditMode.Track,
+                enableTrackSegmentation = uiState.editMode == EditMode.Track,
+                locateDeviceRequestId = locateDeviceRequestId,
+                trackDetectionRequestId = trackDetectionRequestId,
+                trackDetectionTarget = trackDetectionTarget,
+                onMapLoaded = { mapLoaded = true },
+                onDeviceLocationChanged = viewModel::onDeviceLocationChanged,
+                onMapTapped = { lat, lon, segmentedTrack ->
+                    wasStopped = false
+                    viewModel.onMapTapped(lat, lon, segmentedTrack)
+                },
+                onTrackDetectionRequested = viewModel::detectTrackWithSegment,
+                modifier = Modifier.fillMaxSize(),
+            )
+
             when (destination) {
                 AppDestination.Map -> MapHomeOverlay(
                     state = uiState,
@@ -103,6 +105,7 @@ fun MainScreen(
                     wasStopped = wasStopped,
                     contentPadding = innerPadding,
                     onSearch = { navigateTo(AppDestination.Search) },
+                    onLocateDevice = { locateDeviceRequestId += 1 },
                     onRequestPermissions = onRequestPermissions,
                     onOpenLocationSettings = viewModel::openLocationSettings,
                     onOpenDeveloperOptions = viewModel::openDeveloperOptions,

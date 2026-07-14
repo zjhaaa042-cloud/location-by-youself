@@ -9,8 +9,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +38,7 @@ fun MapHomeOverlay(
     wasStopped: Boolean,
     contentPadding: PaddingValues,
     onSearch: () -> Unit,
+    onLocateDevice: () -> Unit,
     onRequestPermissions: () -> Unit,
     onOpenLocationSettings: () -> Unit,
     onOpenDeveloperOptions: () -> Unit,
@@ -103,6 +109,24 @@ fun MapHomeOverlay(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+        }
+
+        FilledIconButton(
+            onClick = onLocateDevice,
+            enabled = state.devicePoint != null,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = AppSpacing.sm)
+                .size(48.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Default.MyLocation,
+                contentDescription = if (state.devicePoint == null) {
+                    "正在获取当前位置"
+                } else {
+                    "定位到当前位置"
+                },
+            )
         }
 
         SimulationControlPanel(
