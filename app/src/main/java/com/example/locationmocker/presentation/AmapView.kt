@@ -6,7 +6,7 @@ import android.os.Bundle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -51,7 +51,7 @@ fun AmapView(
     val currentOnMapTapped = rememberUpdatedState(onMapTapped)
     val currentTrackDetectionTarget = rememberUpdatedState(trackDetectionTarget)
     val currentOnTrackDetectionRequested = rememberUpdatedState(onTrackDetectionRequested)
-    var handledTrackDetectionRequestId by remember { mutableStateOf(0) }
+    var handledTrackDetectionRequestId by remember { mutableIntStateOf(0) }
     val mapView = remember {
         MapsInitializer.updatePrivacyShow(context, true, true)
         MapsInitializer.updatePrivacyAgree(context, true)
