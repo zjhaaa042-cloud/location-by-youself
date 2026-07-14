@@ -6,8 +6,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,12 +32,31 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val colorScheme = lightColorScheme(
-                primary = androidx.compose.ui.graphics.Color(0xFF156C5E),
-                secondary = androidx.compose.ui.graphics.Color(0xFF3B6475),
-                tertiary = androidx.compose.ui.graphics.Color(0xFF7B5A16),
-                surface = androidx.compose.ui.graphics.Color(0xFFF8FAF9),
-            )
+            val colorScheme = if (isSystemInDarkTheme()) {
+                darkColorScheme(
+                    primary = Color(0xFF74D9C5),
+                    onPrimary = Color(0xFF00382F),
+                    primaryContainer = Color(0xFF005045),
+                    onPrimaryContainer = Color(0xFF94F7E0),
+                    secondary = Color(0xFFA8CDDB),
+                    secondaryContainer = Color(0xFF294A56),
+                    surface = Color(0xFF101513),
+                    surfaceVariant = Color(0xFF3F4945),
+                )
+            } else {
+                lightColorScheme(
+                    primary = Color(0xFF006B5C),
+                    onPrimary = Color.White,
+                    primaryContainer = Color(0xFF9EF2DC),
+                    onPrimaryContainer = Color(0xFF00201A),
+                    secondary = Color(0xFF486A73),
+                    secondaryContainer = Color(0xFFCBE8F0),
+                    tertiary = Color(0xFF765A00),
+                    surface = Color(0xFFF8FBF9),
+                    surfaceVariant = Color(0xFFDBE5E1),
+                    background = Color(0xFFF5FAF7),
+                )
+            }
             MaterialTheme(colorScheme = colorScheme) {
                 val factory = remember {
                     MainViewModelFactory(

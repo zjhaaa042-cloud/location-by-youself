@@ -2,6 +2,12 @@
 
 package com.example.locationmocker.presentation
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,25 +16,36 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Undo
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,7 +62,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -83,53 +99,28 @@ fun MainScreen(
             modifier = Modifier.fillMaxSize(),
         )
 
-        Surface(
+        TopStatusCard(
+            readiness = uiState.readiness,
+            mapLoaded = mapLoaded,
+            hasDeviceLocation = uiState.devicePoint != null,
+            onRequestPermissions = onRequestPermissions,
+            onOpenLocationSettings = viewModel::openLocationSettings,
+            onOpenDeveloperOptions = viewModel::openDeveloperOptions,
+            onRefresh = viewModel::refreshReadiness,
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(12.dp),
-            shape = RoundedCornerShape(8.dp),
-            tonalElevation = 2.dp,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-        ) {
-            ReadinessBar(
-                readiness = uiState.readiness,
-                onRequestPermissions = onRequestPermissions,
-                onOpenLocationSettings = viewModel::openLocationSettings,
-                onOpenDeveloperOptions = viewModel::openDeveloperOptions,
-                onRefresh = viewModel::refreshReadiness,
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            )
-        }
-
-        Surface(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(12.dp),
-            shape = RoundedCornerShape(8.dp),
-            tonalElevation = 2.dp,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
-        ) {
-            Text(
-                text = buildMapStatusText(mapLoaded, uiState.devicePoint != null),
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.labelMedium,
-            )
-        }
-
-        FloatingPlaybackControls(
-            state = uiState,
-            onPlay = viewModel::play,
-            onPause = viewModel::pause,
-            onResume = viewModel::resume,
-            onStop = viewModel::stop,
-            onTogglePanel = { controlsExpanded = !controlsExpanded },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-                .padding(12.dp),
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+                .widthIn(max = 620.dp)
+                .fillMaxWidth(),
         )
 
-        if (controlsExpanded) {
+        AnimatedVisibility(
+            visible = controlsExpanded,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(initialOffsetY = { it / 3 }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it / 3 }) + fadeOut(),
+        ) {
             SecondaryControlPanel(
                 state = uiState,
                 onEditModeChanged = viewModel::setEditMode,
@@ -153,66 +144,123 @@ fun MainScreen(
                 onUndo = viewModel::undoLastPoint,
                 onClear = viewModel::clearPoints,
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .widthIn(max = 560.dp)
                     .navigationBarsPadding()
-                    .padding(start = 12.dp, end = 96.dp, bottom = 12.dp)
-                    .shadow(8.dp, RoundedCornerShape(8.dp)),
+                    .padding(start = 12.dp, end = 12.dp, bottom = 92.dp)
+                    .widthIn(max = 620.dp)
+                    .fillMaxWidth(),
             )
         }
+
+        PlaybackDock(
+            state = uiState,
+            expanded = controlsExpanded,
+            onPlay = viewModel::play,
+            onPause = viewModel::pause,
+            onResume = viewModel::resume,
+            onStop = viewModel::stop,
+            onTogglePanel = { controlsExpanded = !controlsExpanded },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(12.dp)
+                .widthIn(max = 620.dp)
+                .fillMaxWidth(),
+        )
     }
 }
 
 @Composable
-private fun ReadinessBar(
+private fun TopStatusCard(
     readiness: Readiness,
+    mapLoaded: Boolean,
+    hasDeviceLocation: Boolean,
     onRequestPermissions: () -> Unit,
     onOpenLocationSettings: () -> Unit,
     onOpenDeveloperOptions: () -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = readinessText(readiness),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.width(6.dp))
-            IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Refresh, contentDescription = "\u5237\u65b0\u72b6\u6001")
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        shadowElevation = 8.dp,
+        tonalElevation = 3.dp,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = CircleShape,
+                    color = if (readiness.ready) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.errorContainer
+                    },
+                ) {
+                    Icon(
+                        imageVector = if (readiness.ready) Icons.Default.CheckCircle else Icons.Default.WarningAmber,
+                        contentDescription = null,
+                        tint = if (readiness.ready) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        },
+                        modifier = Modifier.padding(8.dp).size(20.dp),
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = readinessText(readiness),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = buildMapStatusText(mapLoaded, hasDeviceLocation),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                IconButton(onClick = onRefresh) {
+                    Icon(Icons.Default.Refresh, contentDescription = "刷新状态")
+                }
             }
-        }
 
-        if (!readiness.ready) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!readiness.hasLocationPermission) {
-                    AssistChip(onClick = onRequestPermissions, label = { Text("\u5b9a\u4f4d\u6743\u9650") })
+            if (!readiness.ready || !readiness.hasNotificationPermission) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (!readiness.hasLocationPermission) {
+                        AssistChip(onClick = onRequestPermissions, label = { Text("授予定位权限") })
+                    }
+                    if (!readiness.locationEnabled) {
+                        AssistChip(onClick = onOpenLocationSettings, label = { Text("开启定位服务") })
+                    }
+                    if (!readiness.mockAppSelected) {
+                        AssistChip(onClick = onOpenDeveloperOptions, label = { Text("选择模拟位置应用") })
+                    }
+                    if (readiness.ready && !readiness.hasNotificationPermission) {
+                        AssistChip(onClick = onRequestPermissions, label = { Text("开启通知") })
+                    }
                 }
-                if (!readiness.locationEnabled) {
-                    AssistChip(onClick = onOpenLocationSettings, label = { Text("\u5b9a\u4f4d\u670d\u52a1") })
-                }
-                if (!readiness.mockAppSelected) {
-                    AssistChip(onClick = onOpenDeveloperOptions, label = { Text("\u6a21\u62df\u4f4d\u7f6e\u5e94\u7528") })
-                }
-            }
-        } else if (!readiness.hasNotificationPermission) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssistChip(onClick = onRequestPermissions, label = { Text("\u5f00\u542f\u901a\u77e5") })
             }
         }
     }
 }
 
 @Composable
-private fun FloatingPlaybackControls(
+private fun PlaybackDock(
     state: MainUiState,
+    expanded: Boolean,
     onPlay: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -222,40 +270,60 @@ private fun FloatingPlaybackControls(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(22.dp),
+        shadowElevation = 10.dp,
         tonalElevation = 5.dp,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
     ) {
-        Column(
-            modifier = Modifier.padding(6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+            ) {
+                Icon(
+                    imageVector = modeIcon(state.editMode),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(9.dp).size(20.dp),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = state.statusText(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${modeName(state.editMode)} · ${speedLabel(state)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             when (state.simulationState) {
-                SimulationState.Running -> {
-                    IconButton(onClick = onPause) {
-                        Icon(Icons.Default.Pause, contentDescription = "\u6682\u505c")
-                    }
+                SimulationState.Running -> FilledIconButton(onClick = onPause) {
+                    Icon(Icons.Default.Pause, contentDescription = "暂停")
                 }
-
-                SimulationState.Paused -> {
-                    IconButton(onClick = onResume) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "\u7ee7\u7eed")
-                    }
+                SimulationState.Paused -> FilledIconButton(onClick = onResume) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = "继续")
                 }
-
-                else -> {
-                    IconButton(onClick = onPlay) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "\u5f00\u59cb")
-                    }
+                else -> FilledIconButton(onClick = onPlay) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = "开始")
                 }
             }
-
             IconButton(onClick = onStop) {
-                Icon(Icons.Default.Stop, contentDescription = "\u505c\u6b62")
+                Icon(Icons.Default.Stop, contentDescription = "停止")
             }
-
-            Button(onClick = onTogglePanel) {
-                Text("\u63a7\u5236")
+            IconButton(onClick = onTogglePanel) {
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ExpandMore else Icons.Default.Tune,
+                    contentDescription = if (expanded) "收起控制面板" else "展开控制面板",
+                )
             }
         }
     }
@@ -280,67 +348,81 @@ private fun SecondaryControlPanel(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-        tonalElevation = 4.dp,
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+        shadowElevation = 12.dp,
+        tonalElevation = 5.dp,
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(
+            modifier = Modifier
+                .heightIn(max = 480.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(18.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "模拟控制",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "选择模式并调整移动参数",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = onCollapse) {
+                    Icon(Icons.Default.ExpandMore, contentDescription = "收起")
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            SectionLabel("模拟方式")
             Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 FilterChip(
                     selected = state.editMode == EditMode.Fixed,
                     onClick = { onEditModeChanged(EditMode.Fixed) },
-                    label = { Text("\u5b9a\u70b9") },
+                    label = { Text("定点") },
+                    leadingIcon = { Icon(Icons.Default.LocationOn, null, Modifier.size(16.dp)) },
                 )
                 FilterChip(
                     selected = state.editMode == EditMode.Route,
                     onClick = { onEditModeChanged(EditMode.Route) },
-                    label = { Text("\u8def\u7ebf ${state.points.size}") },
+                    label = { Text("路线 ${state.points.size}") },
+                    leadingIcon = { Icon(Icons.Default.Route, null, Modifier.size(16.dp)) },
                 )
                 FilterChip(
                     selected = state.editMode == EditMode.Track,
                     onClick = { onEditModeChanged(EditMode.Track) },
-                    label = { Text("\u64cd\u573a") },
-                    leadingIcon = {
-                        Icon(Icons.Default.DirectionsRun, contentDescription = null, modifier = Modifier.size(16.dp))
-                    },
+                    label = { Text("操场") },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.DirectionsRun, null, Modifier.size(16.dp)) },
                 )
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = onUndo, enabled = state.points.isNotEmpty() && state.editMode != EditMode.Track) {
-                    Icon(Icons.Default.Undo, contentDescription = "\u64a4\u9500\u4e0a\u4e00\u4e2a\u70b9")
-                }
-                IconButton(onClick = onClear, enabled = state.points.isNotEmpty()) {
-                    Icon(Icons.Default.Delete, contentDescription = "\u6e05\u7a7a\u70b9\u4f4d")
-                }
-                OutlinedButton(onClick = onCollapse) {
-                    Text("\u6536\u8d77")
-                }
             }
 
             if (state.editMode == EditMode.Track) {
+                Spacer(Modifier.height(12.dp))
+                TrackStatusRow(trackState = state.trackState, onDetectTrack = onDetectTrack)
                 Spacer(Modifier.height(8.dp))
-                TrackStatusRow(
-                    trackState = state.trackState,
-                    onDetectTrack = onDetectTrack,
-                )
-                Spacer(Modifier.height(6.dp))
                 TrackOrientationRow(
                     orientation = state.trackOrientation,
                     onTrackOrientationChanged = onTrackOrientationChanged,
                 )
             }
 
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = if (state.editMode == EditMode.Track) {
-                    "\u6162\u8dd1\u901f\u5ea6 ${"%.1f".format(state.speedKmh)} km/h"
-                } else {
-                    "\u901f\u5ea6 ${state.speedKmh.toInt()} km/h"
-                },
-                style = MaterialTheme.typography.labelLarge,
-            )
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SectionLabel("移动速度", modifier = Modifier.weight(1f))
+                Text(
+                    text = speedLabel(state),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
             Slider(
                 value = state.speedKmh,
                 onValueChange = onSpeedChanged,
@@ -348,7 +430,11 @@ private fun SecondaryControlPanel(
                 steps = if (state.editMode == EditMode.Track) 11 else 22,
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionLabel("播放方式")
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 PlaybackMode.entries.forEach { mode ->
                     FilterChip(
                         selected = state.playbackMode == mode,
@@ -358,52 +444,66 @@ private fun SecondaryControlPanel(
                 }
             }
 
+            Spacer(Modifier.height(14.dp))
+            Divider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = state.statusText(),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedButton(
+                    onClick = onUndo,
+                    enabled = state.points.isNotEmpty() && state.editMode != EditMode.Track,
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Undo, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("撤销")
+                }
+                OutlinedButton(onClick = onClear, enabled = state.points.isNotEmpty()) {
+                    Icon(Icons.Default.DeleteOutline, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("清空")
+                }
+                Spacer(Modifier.width(4.dp))
                 when (state.simulationState) {
-                    SimulationState.Running -> {
-                        IconButton(onClick = onPause) {
-                            Icon(Icons.Default.Pause, contentDescription = "\u6682\u505c")
-                        }
+                    SimulationState.Running -> Button(onClick = onPause) {
+                        Icon(Icons.Default.Pause, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("暂停")
                     }
-
-                    SimulationState.Paused -> {
-                        IconButton(onClick = onResume) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "\u7ee7\u7eed")
-                        }
+                    SimulationState.Paused -> Button(onClick = onResume) {
+                        Icon(Icons.Default.PlayArrow, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("继续")
                     }
-
-                    else -> {
-                        Button(onClick = onPlay) {
-                            Icon(
-                                imageVector = if (state.editMode == EditMode.Track) {
-                                    Icons.Default.DirectionsRun
-                                } else {
-                                    Icons.Default.PlayArrow
-                                },
-                                contentDescription = null,
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(if (state.editMode == EditMode.Track) "\u5f00\u59cb\u8dd1\u6b65" else "\u5f00\u59cb")
-                        }
+                    else -> Button(onClick = onPlay) {
+                        Icon(modeIcon(state.editMode), null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (state.editMode == EditMode.Track) "开始跑步" else "开始")
                     }
                 }
-                Spacer(Modifier.width(8.dp))
                 OutlinedButton(onClick = onStop) {
-                    Icon(Icons.Default.Stop, contentDescription = null)
-                    Spacer(Modifier.width(4.dp))
-                    Text("\u505c\u6b62")
+                    Icon(Icons.Default.Stop, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("停止")
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        modifier = modifier,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.SemiBold,
+    )
 }
 
 @Composable
@@ -412,99 +512,111 @@ private fun TrackOrientationRow(
     onTrackOrientationChanged: (TrackOrientation) -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "\u8dd1\u9053\u65b9\u5411",
-            style = MaterialTheme.typography.labelLarge,
-            maxLines = 1,
-        )
+        SectionLabel("跑道方向")
         FilterChip(
             selected = orientation == TrackOrientation.Vertical,
             onClick = { onTrackOrientationChanged(TrackOrientation.Vertical) },
-            label = { Text("\u7ad6\u5411") },
+            label = { Text("竖向") },
         )
         FilterChip(
             selected = orientation == TrackOrientation.Horizontal,
             onClick = { onTrackOrientationChanged(TrackOrientation.Horizontal) },
-            label = { Text("\u6a2a\u5411") },
+            label = { Text("横向") },
         )
     }
 }
 
 @Composable
-private fun TrackStatusRow(
-    trackState: TrackUiState,
-    onDetectTrack: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+private fun TrackStatusRow(trackState: TrackUiState, onDetectTrack: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
-        Icon(Icons.Default.Route, contentDescription = null, modifier = Modifier.size(18.dp))
-        Text(
-            text = trackState.statusText(),
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        OutlinedButton(
-            onClick = onDetectTrack,
-            enabled = trackState != TrackUiState.Detecting,
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(if (trackState == TrackUiState.Detecting) "\u8bc6\u522b\u4e2d" else "\u8bc6\u522b\u64cd\u573a")
+            Icon(
+                Icons.Default.Route,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = trackState.statusText(),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            OutlinedButton(onClick = onDetectTrack, enabled = trackState != TrackUiState.Detecting) {
+                Text(if (trackState == TrackUiState.Detecting) "识别中" else "识别操场")
+            }
         }
     }
 }
 
-private fun readinessText(readiness: Readiness): String {
-    return if (readiness.ready) {
-        if (readiness.hasNotificationPermission) {
-            "\u5df2\u51c6\u5907\u597d\u6a21\u62df\u5b9a\u4f4d"
-        } else {
-            "\u5df2\u51c6\u5907\u597d\uff0c\u5efa\u8bae\u5f00\u542f\u901a\u77e5"
-        }
-    } else {
-        val missing = readiness.missingItems()
-            .filterNot { it == "\u901a\u77e5\u6743\u9650" }
-            .joinToString("\u3001")
-        "\u8fd8\u9700\u8981\uff1a$missing"
-    }
+private fun modeIcon(mode: EditMode) = when (mode) {
+    EditMode.Fixed -> Icons.Default.LocationOn
+    EditMode.Route -> Icons.Default.Route
+    EditMode.Track -> Icons.AutoMirrored.Filled.DirectionsRun
+}
+
+private fun modeName(mode: EditMode): String = when (mode) {
+    EditMode.Fixed -> "定点模式"
+    EditMode.Route -> "路线模式"
+    EditMode.Track -> "操场模式"
+}
+
+private fun speedLabel(state: MainUiState): String = if (state.editMode == EditMode.Track) {
+    "%.1f km/h".format(state.speedKmh)
+} else {
+    "${state.speedKmh.toInt()} km/h"
+}
+
+private fun readinessText(readiness: Readiness): String = if (readiness.ready) {
+    if (readiness.hasNotificationPermission) "模拟定位已就绪" else "已就绪，建议开启通知"
+} else {
+    val missing = readiness.missingItems().filterNot { it == "通知权限" }.joinToString("、")
+    "还需要：$missing"
 }
 
 private fun buildMapStatusText(mapLoaded: Boolean, hasDeviceLocation: Boolean): String {
-    val mapText = if (mapLoaded) "\u9ad8\u5fb7\u5e95\u56fe\u5df2\u52a0\u8f7d" else "\u9ad8\u5fb7\u5e95\u56fe\u52a0\u8f7d\u4e2d"
-    val locationText = if (hasDeviceLocation) "\u5df2\u5b9a\u4f4d" else "\u5b9a\u4f4d\u4e2d"
-    return "$mapText \u00b7 $locationText"
+    val mapText = if (mapLoaded) "地图已加载" else "地图加载中"
+    val locationText = if (hasDeviceLocation) "设备已定位" else "正在定位"
+    return "$mapText · $locationText"
 }
 
 private fun PlaybackMode.displayName(): String = when (this) {
-    PlaybackMode.Once -> "\u5355\u6b21"
-    PlaybackMode.Loop -> "\u5faa\u73af"
-    PlaybackMode.PingPong -> "\u5f80\u8fd4"
+    PlaybackMode.Once -> "单次"
+    PlaybackMode.Loop -> "循环"
+    PlaybackMode.PingPong -> "往返"
 }
 
 private fun TrackUiState.statusText(): String = when (this) {
-    TrackUiState.NotSelected -> "\u70b9\u51fb\u64cd\u573a\u9644\u8fd1\u4f4d\u7f6e"
-    is TrackUiState.ReadyToDetect -> "\u70b9\u51fb\u201c\u8bc6\u522b\u64cd\u573a\u201d\u6216\u91cd\u65b0\u70b9\u9009\u9644\u8fd1\u4f4d\u7f6e"
-    TrackUiState.Detecting -> "\u6b63\u5728\u8bc6\u522b\u9644\u8fd1\u64cd\u573a"
-    is TrackUiState.Detected -> "\u5df2\u8bc6\u522b\uff1a$name"
-    is TrackUiState.Failed -> message.ifBlank { "\u672a\u8bc6\u522b\u5230\u64cd\u573a" }
+    TrackUiState.NotSelected -> "点击操场附近位置"
+    is TrackUiState.ReadyToDetect -> "点击“识别操场”或重新点选附近位置"
+    TrackUiState.Detecting -> "正在识别附近操场"
+    is TrackUiState.Detected -> "已识别：$name"
+    is TrackUiState.Failed -> message.ifBlank { "未识别到操场" }
 }
 
 private fun MainUiState.statusText(): String = when (val state = simulationState) {
-    SimulationState.Idle -> if (editMode == EditMode.Track) "\u70b9\u51fb\u64cd\u573a\u9644\u8fd1\u4f4d\u7f6e" else "\u70b9\u51fb\u5730\u56fe\u9009\u62e9\u4f4d\u7f6e"
+    SimulationState.Idle -> if (editMode == EditMode.Track) "点击操场附近位置" else "点击地图选择位置"
     SimulationState.Ready -> when (editMode) {
         EditMode.Track -> trackState.statusText()
-        else -> selectedPoint?.let { "%.5f, %.5f".format(it.lat, it.lon) } ?: "\u5df2\u5c31\u7eea"
+        else -> selectedPoint?.let { "%.5f, %.5f".format(it.lat, it.lon) } ?: "已就绪"
     }
     SimulationState.Running -> currentPoint?.let {
-        "\u6b63\u5728\u79fb\u52a8\uff1a%.5f, %.5f".format(it.lat, it.lon)
-    } ?: "\u6b63\u5728\u8f93\u51fa\u6a21\u62df\u5b9a\u4f4d"
-    SimulationState.Paused -> "\u5df2\u6682\u505c"
+        "正在移动：%.5f, %.5f".format(it.lat, it.lon)
+    } ?: "正在输出模拟定位"
+    SimulationState.Paused -> "已暂停"
     is SimulationState.Error -> state.message
 }
