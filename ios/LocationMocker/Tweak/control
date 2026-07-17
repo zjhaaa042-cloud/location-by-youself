@@ -1,0 +1,9 @@
+Package: com.example.locationmocker
+Name: LocationMocker
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: 全局位置模拟插件 — 挂钩 CoreLocation 向所有 App 注入模拟定位
+Maintainer: LocationMocker Team
+Author: LocationMocker
+Section: Tweaks
+Depends: mobilesubstrate (>= 0.9.5000), firmware (>= 14.0)

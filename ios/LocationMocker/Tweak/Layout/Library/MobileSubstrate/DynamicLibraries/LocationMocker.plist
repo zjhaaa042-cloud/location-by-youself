@@ -1,0 +1,17 @@
+// LocationMocker.plist — MobileSubstrate filter
+// 指定注入目标: 所有链接 CoreLocation 的进程
+// Filter 类型: CoreFoundation bundle filter (基于链接的 framework)
+
+{
+    Filter = {
+        Bundles = (
+            "com.apple.locationd",
+            "com.apple.SpringBoard",
+        );
+        // 也注入到所有第三方 App
+        // 使用 CoreLocation 作为条件 (任何使用定位的进程都会被注入)
+        Executables = (
+            "locationd",
+        );
+    };
+}
