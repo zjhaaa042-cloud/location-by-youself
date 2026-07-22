@@ -122,6 +122,13 @@ fun AmapView(
         factory = { mapView },
         update = { view ->
             val amap = view.map
+            val shouldShowDeviceLocation = currentPoint == null
+            if (amap.isMyLocationEnabled != shouldShowDeviceLocation) {
+                // The AMap location layer can keep reporting the real fused position even while
+                // the system test providers are active. Hide it during simulation so it cannot
+                // visually replace the continuously injected mock position.
+                amap.isMyLocationEnabled = shouldShowDeviceLocation
+            }
             overlayState.render(
                 amap = amap,
                 points = points,

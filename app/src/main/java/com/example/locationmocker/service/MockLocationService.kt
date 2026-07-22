@@ -18,6 +18,7 @@ import com.example.locationmocker.domain.model.RouteProfile
 import com.example.locationmocker.domain.model.SimulationConfig
 import com.example.locationmocker.domain.route.PlaybackCursor
 import com.example.locationmocker.domain.route.RoutePlanner
+import com.example.locationmocker.domain.route.StationaryFixCursor
 import com.example.locationmocker.domain.track.NaturalRunCursor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +44,15 @@ class MockLocationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent == null) {
+            val restoredPoint = readPersistedFixedPoint()
+            if (restoredPoint == null) {
+                stopSelf(startId)
+                return START_NOT_STICKY
+            }
+            startFixed(restoredPoint)
+            return START_STICKY
+        }
         when (intent?.action) {
             ACTION_START_FIXED -> startFixed(intent)
             ACTION_START_ROUTE -> startRoute(intent)
@@ -73,7 +83,13 @@ class MockLocationService : Service() {
 
     private fun startFixed(intent: Intent) {
         val point = intent.readPoints().firstOrNull() ?: return
+        persistFixedPoint(point)
+        startFixed(point)
+    }
+
+    private fun startFixed(point: RoutePoint) {
         activeNaturalCursor = null
+        val stationaryCursor = StationaryFixCursor(point)
         paused = false
         SimulationProgressBus.update(
             SimulationProgress(
@@ -89,10 +105,11 @@ class MockLocationService : Service() {
             while (isActive) {
                 if (!paused) {
                     try {
+                        val sample = stationaryCursor.next()
                         mockController.pushLocation(
-                            point = point,
-                            speedMetersPerSecond = 0f,
-                            bearingDegrees = 0f,
+                            point = sample.point,
+                            speedMetersPerSecond = sample.speedMetersPerSecond,
+                            bearingDegrees = sample.bearingDegrees,
                         )
                         SimulationProgressBus.update(
                             SimulationProgress(
@@ -107,7 +124,7 @@ class MockLocationService : Service() {
                         return@launch
                     }
                 }
-                delay(DEFAULT_INTERVAL_MS)
+                delay(FIXED_INTERVAL_MS)
             }
         }
     }
@@ -115,6 +132,7 @@ class MockLocationService : Service() {
     private fun startRoute(intent: Intent) {
         val points = intent.readPoints()
         if (points.isEmpty()) return
+        clearPersistedFixedPoint()
         val speedKmh = intent.getFloatExtra(EXTRA_SPEED_KMH, 5f).coerceIn(5f, 120f)
         val mode = intent.getStringExtra(EXTRA_PLAYBACK_MODE)?.let { raw ->
             PlaybackMode.entries.firstOrNull { it.name == raw }
@@ -194,6 +212,7 @@ class MockLocationService : Service() {
         runnerJob?.cancel()
         runnerJob = null
         activeNaturalCursor = null
+        clearPersistedFixedPoint()
         mockController.stop()
         if (clearProgress) {
             SimulationProgressBus.clear()
@@ -261,10 +280,44 @@ class MockLocationService : Service() {
         }
     }
 
+    private fun persistFixedPoint(point: RoutePoint) {
+        getSharedPreferences(SESSION_PREFERENCES, MODE_PRIVATE)
+            .edit()
+            .putLong(KEY_FIXED_LATITUDE, point.lat.toBits())
+            .putLong(KEY_FIXED_LONGITUDE, point.lon.toBits())
+            .apply()
+    }
+
+    private fun readPersistedFixedPoint(): RoutePoint? {
+        val preferences = getSharedPreferences(SESSION_PREFERENCES, MODE_PRIVATE)
+        if (
+            !preferences.contains(KEY_FIXED_LATITUDE) ||
+            !preferences.contains(KEY_FIXED_LONGITUDE)
+        ) {
+            return null
+        }
+        return RoutePoint(
+            lat = Double.fromBits(preferences.getLong(KEY_FIXED_LATITUDE, 0L)),
+            lon = Double.fromBits(preferences.getLong(KEY_FIXED_LONGITUDE, 0L)),
+        )
+    }
+
+    private fun clearPersistedFixedPoint() {
+        getSharedPreferences(SESSION_PREFERENCES, MODE_PRIVATE)
+            .edit()
+            .remove(KEY_FIXED_LATITUDE)
+            .remove(KEY_FIXED_LONGITUDE)
+            .apply()
+    }
+
     companion object {
         private const val CHANNEL_ID = "mock_location"
         private const val NOTIFICATION_ID = 31
+        private const val SESSION_PREFERENCES = "mock_location_session"
+        private const val KEY_FIXED_LATITUDE = "fixed_latitude"
+        private const val KEY_FIXED_LONGITUDE = "fixed_longitude"
         private const val DEFAULT_INTERVAL_MS = 1_000L
+        private const val FIXED_INTERVAL_MS = 250L
         private const val TRACK_RUNNING_INTERVAL_MS = 250L
 
         const val ACTION_START_FIXED = "com.example.locationmocker.START_FIXED"
