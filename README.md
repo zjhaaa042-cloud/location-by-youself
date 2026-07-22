@@ -1,233 +1,211 @@
-# 定位模拟器
+# 定位模拟器（Location Mocker）
 
-一个运行在 Android 手机上的定位模拟工具。应用使用 Kotlin、Jetpack Compose、Material 3、高德地图 SDK 和 Android 官方 Mock Location API 实现，不需要 ROOT。
+一款无需 Root 的 Android 模拟定位工具。支持单点定位、路线移动与操场跑步，可调速度、循环方式和定位参数，并通过前台服务保持持续运行。
 
-本项目只用于开发调试、轨迹验证和个人测试。系统会把本应用输出的位置标记为模拟定位；项目不包含隐藏模拟定位、绕过检测、规避第三方风控或伪装系统环境的能力。
+[![Android](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
-## 主要功能
+> [!WARNING]
+> 本项目仅用于开发、测试和学习。请遵守所在地法律法规及目标应用的服务条款，禁止用于作弊、欺诈或绕过安全机制。
 
-- 定点模拟：在地图上点击任意位置，将模拟定位输出到该点。
-- 路线模拟：添加多个途经点，生成平滑路线并按设定速度移动。
-- 速度控制：普通路线支持 5-120 km/h。
-- 回放模式：支持单次、循环、往返。
-- 操场模式：点击操场区域后，尝试识别跑道并生成逆时针 400 米跑步轨迹。
-- 自然跑步：操场路线支持 6-12 km/h 的速度波动、1-3 米左右漂移、每圈略微不同的轨迹。
-- 实时显示：地图上显示当前模拟位置、路线和运动轨迹。
-- 地图交互：支持运行中拖动、双指缩放、点击选点，以及一键回到设备当前位置。
-- 地点工具：支持经纬度搜索、最近选点查看和收藏页面空状态。
-- 状态反馈：区分等待启动、运行中、已暂停、已停止、权限未就绪和定位异常等状态。
-- 深色与适配：支持系统深色模式、小屏幕和横屏布局。
-- 后台运行：使用前台定位服务持续输出模拟位置，通知栏提供运行状态。
+## 仓库与分支
 
-## 技术栈
+GitHub 与 Gitee 为同步镜像，两个仓库均保留 Android 和 iOS 两条分支：
 
-- 语言：Kotlin
-- UI：Jetpack Compose + Material 3
-- 地图：高德地图 SDK
-- 架构：轻量 MVVM + Clean Architecture
-- 定位：Android `LocationManager` Mock Location API
-- 后台：Foreground Service，类型为 `location`
-- 本地存储：DataStore Preferences
-- 最低系统：Android 8.0（API 26）
-- 编译目标：Android API 36、JDK 17
+| 平台 | Android（`master`） | iOS（`ios`） |
+|---|---|---|
+| GitHub | [查看 Android 分支](https://github.com/zjhaaa042-cloud/location-by-youself/tree/master) | [查看 iOS 分支](https://github.com/zjhaaa042-cloud/location-by-youself/tree/ios) |
+| Gitee | [查看 Android 分支](https://gitee.com/ZhangJiaHuidjj/location-by-youself/tree/master) | [查看 iOS 分支](https://gitee.com/ZhangJiaHuidjj/location-by-youself/tree/ios) |
 
-## App 结构
+当前 README 介绍的是 Android `master` 分支。
 
-```text
-app/src/main/java/com/example/locationmocker
-├── data
-│   └── 本地配置、偏好设置、持久化数据
-├── domain
-│   ├── geo      坐标、距离、方位角、坐标系转换
-│   ├── model    路线点、回放模式、运行状态等核心类型
-│   ├── route    普通路线采样、速度换算、回放推进
-│   └── track    操场识别结果、跑道规划、自然跑步采样
-├── presentation
-│   ├── ui/components  通用导航、状态、权限、位置和模拟控制组件
-│   ├── ui/screens     地图、搜索、收藏/历史和设置页面
-│   ├── ui/theme       亮色/深色主题与统一设计变量
-│   └── 地图控件、主页面编排和 ViewModel
-└── service
-    └── MockLocationService 和 MockLocationController
-```
+## 功能亮点
 
-关键文件：
+| 模式 | 适用场景 | 主要能力 |
+|---|---|---|
+| 单点定位 | 固定在指定地点 | 地图选点、坐标输入、收藏地点、亚米级稳定微扰 |
+| 路线移动 | 模拟步行或驾车 | 多点路线、速度调节、循环/往返、平滑移动 |
+| 操场跑步 | 模拟标准跑道运动 | 跑道识别、方向切换、圈数/距离配置、自然配速 |
 
-- `MainActivity.kt`：应用入口。
-- `presentation/MainScreen.kt`：主界面和地图交互。
-- `presentation/AmapView.kt`：高德地图生命周期、手势、覆盖物增量渲染和相机控制。
-- `presentation/ui/screens/MapHomeScreen.kt`：地图首页覆盖层和当前位置按钮。
-- `presentation/MainViewModel.kt`：界面状态、模式切换、服务指令。
-- `service/MockLocationService.kt`：前台服务，负责持续输出模拟位置。
-- `service/MockLocationController.kt`：封装系统 Mock Location Provider。
-- `domain/track/TrackRoutePlanner.kt`：生成逆时针操场跑道路线。
-- `domain/track/NaturalRunCursor.kt`：生成自然跑步速度和位置扰动。
+此外还支持：
 
-## 包名和高德 Key
+- 地点搜索与收藏
+- WGS-84、GCJ-02 坐标转换
+- 精度、高度、速度和方向等定位参数模拟
+- 前台服务保活及异常恢复
+- Android 深色模式与 Material 3 界面
 
-当前包名：
+## 快速开始
+
+### 1. 环境要求
+
+- Android Studio（建议使用最新稳定版）
+- JDK 17
+- Android SDK 36
+- Android 8.0（API 26）及以上设备或模拟器
+- 高德开放平台 Android Key
+
+### 2. 配置高德地图 Key
+
+在[高德开放平台控制台](https://console.amap.com/)创建 Android 应用，填写本项目包名：
 
 ```text
 com.example.locationmocker
 ```
 
-高德地图 Key 不提交到仓库。请在项目根目录的 `local.properties` 中配置：
+然后在项目根目录的 `local.properties` 中添加：
 
 ```properties
 AMAP_API_KEY=你的高德地图Key
 ```
 
-高德控制台需要配置 Android 应用的包名和 SHA1。Debug 包通常使用本机 debug keystore 的 SHA1；Release 包需要使用正式签名证书的 SHA1。
+`local.properties` 不应提交到版本库。
 
-## 安装方式
+### 3. 构建并安装
 
-### 方式一：Android Studio 安装
-
-1. 用 Android Studio 打开项目目录。
-2. 选择 Android Studio 内置 JDK 17，等待 Gradle Sync 完成。
-3. 确认 `local.properties` 已配置 `AMAP_API_KEY`。
-4. 连接 Android 手机并开启 USB 调试。
-5. 顶部设备栏选择真机。
-6. 点击 Run，安装并启动 `app`。
-
-### 方式二：命令行构建 APK
-
-Windows PowerShell 示例：
+Windows：
 
 ```powershell
-.\gradlew.bat assembleDebug
+.\gradlew.bat :app:assembleDebug
+.\gradlew.bat :app:installDebug
 ```
 
-构建成功后，Debug APK 通常位于：
+macOS / Linux：
+
+```bash
+./gradlew :app:assembleDebug
+./gradlew :app:installDebug
+```
+
+生成的 APK 位于：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-把 APK 安装到手机后即可使用。
+### 4. 配置设备
 
-## 手机端使用前准备
+1. 打开系统“开发者选项”。
+2. 进入“选择模拟位置信息应用”。
+3. 选择“定位模拟器”。
+4. 打开应用并授予定位、通知等必要权限。
 
-1. 打开手机系统设置。
-2. 开启开发者选项。
-3. 进入“选择模拟位置信息应用”。
-4. 选择本应用“定位模拟器”。
-5. 授予定位权限。
-6. 确认系统定位服务已开启。
-7. Android 13 及以上建议授予通知权限，方便前台服务显示运行状态。
-
-如果在“模拟位置信息应用”列表里找不到本应用，请确认：
-
-- APK 已经成功安装。
-- 当前安装的包名是 `com.example.locationmocker`。
-- 手机开发者选项已经开启。
-- 不要安装多个不同签名或不同包名的旧版本。
+不同品牌系统的菜单名称可能略有差异。若应用提示未被选为模拟位置应用，请重新检查开发者选项。
 
 ## 使用说明
 
-### 定点模式
+### 单点定位
 
-1. 选择“定点”。
-2. 单指拖动或双指缩放地图，点击地图上的目标位置。
-3. 点击开始后，系统模拟定位会输出到该点。
+1. 在地图上长按选点，或使用搜索、收藏、坐标输入。
+2. 切换到“定点”模式。
+3. 点击开始模拟。
+4. 需要结束时点击停止，不要直接强制结束应用进程。
 
-地图右侧的定位按钮会将视图移动到设备当前真实位置；设备位置尚未获取时按钮保持禁用。模拟运行期间仍可拖动和缩放地图，实时位置更新不会强制抢回地图视角。
+单点模式会同时维护 Android 平台测试定位源与 Google Fused Location 模拟模式，并持续刷新同一目标附近的亚米级稳定点。这样可避免部分设备在几秒后重新采用真实坐标；服务被系统短暂打断时也会尝试恢复当前定点任务。
 
-### 路线模式
+### 路线移动
 
-1. 选择“路线”。
-2. 在地图上依次点击多个途经点。
-3. 调整速度和回放模式。
-4. 点击开始，模拟位置会沿路线移动。
+1. 依次添加至少两个路线点。
+2. 设置移动速度与播放方式。
+3. 选择单次、循环或往返后开始模拟。
 
-### 操场模式
+### 操场跑步
 
-1. 选择“操场”。
-2. 把地图缩放到能清楚看到整条跑道。
-3. 点击操场跑道或操场内部区域。
-4. 点击“识别操场”。
-5. 识别成功后点击“开始跑步”。
+1. 将地图移动到跑道区域并选择操场模式。
+2. 执行跑道识别，确认中心、方向和路线是否正确。
+3. 设置圈数、目标距离或配速后开始模拟。
 
-操场模式会生成逆时针路线，并模拟自然跑步时的速度波动和左右偏移。跑步过程中也可以继续调节速度。
+识别不理想时，可放大地图、让完整跑道位于屏幕中央，并避免建筑物或道路覆盖过多。
 
-速度设置值是基础速度，不是每秒完全固定的瞬时值。每圈会随机产生约 `±0.45 km/h` 的偏移，圈内还会叠加约 `±0.5 km/h` 的平滑周期波动；最终速度限制在 `6-12 km/h`。例如基础速度为 `8.5 km/h` 时，瞬时目标速度通常约为 `7.55-9.45 km/h`。
+## 单点稳定机制
 
-## 操场识别注意事项
+部分 Android 设备会同时从系统 `LocationManager` 与 Google Play 服务获取位置。如果只向其中一个来源注入模拟坐标，系统可能在数秒后重新显示真实位置。
 
-操场识别优先依赖当前高德地图画面中的颜色和形状特征。为了提高识别准确率：
+本项目在单点模式中同时处理：
 
-- 地图需要缩放到操场占屏幕较大区域。
-- 尽量让完整跑道出现在屏幕中。
-- 点击位置可以在跑道附近或操场内部，不要求精确点击中心。
-- 如果跑道颜色、地图样式或遮挡导致识别失败，请调整缩放级别后重新识别。
-- 不规则角度的操场会根据识别到的形状自动估计方向，但极端遮挡时仍可能有误差。
+- Google Fused Location Provider 的 Mock Mode
+- GPS、Network 与 Fused 平台测试定位源
+- 单调递增时间戳、精度和速度等完整定位字段
+- 前台服务持续注入、状态恢复与停止清理
+- 地图真实定位图层隔离，避免 UI 被真实蓝点覆盖
+
+## 技术栈
+
+| 类别 | 技术 |
+|---|---|
+| 语言 | Kotlin 2.2.10 |
+| UI | Jetpack Compose、Material 3 |
+| 架构 | MVVM、Repository、Foreground Service |
+| 地图 | 高德地图 SDK 10.1.200 |
+| 定位 | Android Mock Location、Google Play Services Location 21.4.0 |
+| 构建 | Android Gradle Plugin 9.2.1、Gradle 9.4.1、JDK 17 |
+| Android | compileSdk / targetSdk 36，minSdk 26 |
+
+## 项目结构
+
+```text
+app/src/main/java/com/example/locationmocker/
+├── data/                  # 设置持久化与跑道检测
+├── domain/
+│   ├── geo/               # 坐标转换
+│   ├── model/             # 模拟配置与状态模型
+│   ├── route/             # 路线规划、播放与定点序列
+│   └── track/             # 跑道分段与自然跑步轨迹
+├── presentation/          # Compose 页面、组件与 ViewModel
+└── service/               # 模拟定位控制器与前台服务
+```
 
 ## 权限说明
 
-Manifest 中使用的主要权限：
+| 权限 | 用途 |
+|---|---|
+| 精确/粗略定位 | 地图定位、搜索及定位模拟状态判断 |
+| 前台服务与位置类型 | 在后台持续执行模拟任务 |
+| 通知 | 显示前台服务运行状态 |
+| 网络 | 加载地图、地点搜索及相关服务 |
 
-- `ACCESS_FINE_LOCATION`
-- `ACCESS_COARSE_LOCATION`
-- `FOREGROUND_SERVICE`
-- `FOREGROUND_SERVICE_LOCATION`
-- `POST_NOTIFICATIONS`
-- `INTERNET`
-- `ACCESS_NETWORK_STATE`
+应用不会自动获得模拟定位能力，仍需用户在开发者选项中手动选定。
 
-应用启动和运行前会检查定位权限、系统定位开关和模拟定位应用设置。检查失败时只显示引导，不会尝试绕过系统限制。
-
-## 构建与测试
-
-常用构建命令：
+## 开发与验证
 
 ```powershell
-.\gradlew.bat assembleDebug
+# 编译 Debug APK
+.\gradlew.bat :app:assembleDebug
+
+# 编译单元测试源码
+.\gradlew.bat :app:compileDebugUnitTestKotlin
+
+# 运行 Android Lint
+.\gradlew.bat :app:lintDebug
+
+# 运行单元测试
+.\gradlew.bat :app:testDebugUnitTest
 ```
 
-单元测试命令：
-
-```powershell
-.\gradlew.bat testDebugUnitTest
-```
-
-项目在 `gradle.properties` 中使用 Kotlin 进程内编译，以规避 Windows 中文用户名路径可能导致的 Kotlin Worker/Daemon 类路径错误。Compose 依赖通过 BOM 统一管理，请勿为 Material3、Animation 或 UI 模块单独指定冲突版本。
-
-真机验收建议覆盖：
-
-- 定点模拟是否准确。
-- 普通路线是否连续移动。
-- 操场路线是否逆时针。
-- 跑步速度是否有轻微自然波动。
-- 跑步过程中调节速度是否立即生效。
-- 锁屏后前台服务是否继续运行。
-- 停止后 mock provider 是否清理。
+若 Windows 用户目录包含中文且 Gradle Worker 报找不到主类，可优先使用 Android Studio 自带 JBR，并将 Gradle 缓存目录配置到纯英文路径后重试。
 
 ## 常见问题
 
-### 地图不显示
+### 开始后几秒又回到真实位置
 
-优先检查 `AMAP_API_KEY`、包名、SHA1 是否和高德控制台一致。还要确认手机网络可用，并且应用有联网权限。
+- 确认开发者选项中的模拟位置应用仍为“定位模拟器”。
+- 关闭其他定位模拟工具，避免多个应用同时注入位置。
+- 允许应用后台运行，并关闭系统对该应用的省电限制。
+- 停止后重新开始模拟；必要时重启设备再试。
 
-### 地图显示了，但定位不动
+### 地图无法加载或地点搜索失败
 
-确认本应用已经在开发者选项中被设置为“模拟位置信息应用”，并且已经授予定位权限。
+- 检查 `AMAP_API_KEY` 是否已写入 `local.properties`。
+- 确认 Key 的包名和 SHA-1 与当前签名一致。
+- 检查网络权限与设备网络连接。
 
-### 地图无法拖动或缩放
+### 状态栏提示服务运行，但目标应用没有变化
 
-请先确认安装的是最新构建，并关闭覆盖地图的“模拟参数”底部面板。当前版本采用覆盖物增量更新，运行模拟时不会反复清空地图；单指拖动、双指缩放和点击选点均可在运行中使用。
+- 确认目标应用没有自行屏蔽模拟位置。
+- 检查设备是否具备 Google Play 服务；本项目也会使用 Android 平台定位源作为兼容路径。
+- 某些深度定制系统需要额外允许后台定位、自启动或前台服务。
 
-### Android Studio 只显示 `compileDebugKotlin` 失败
+## 许可证
 
-确认 Gradle JDK 为 17，并保留 `gradle.properties` 中的 `kotlin.compiler.execution.strategy=in-process`。如果日志只有空的 `e:` 而没有源码位置，通常是 Windows 中文用户路径下的 Kotlin Worker 启动问题，而不是 Kotlin 语法错误。
-
-### 启动时出现 Compose `NoSuchMethodError`
-
-不要单独降级或升级 Compose 子模块。项目当前使用 Compose BOM `2024.02.02`，用于统一 Material3、Animation 和 UI 运行库版本。
-
-### 其他地图 App 看不到位置变化
-
-部分 App 会过滤或标记 mock location，这是系统机制。本项目不会提供绕过检测或隐藏模拟定位的能力。
-
-### 操场识别偏移
-
-先把地图缩放到完整跑道清晰可见，再点击跑道或操场内部重新识别。当前版本是基于地图画面颜色和几何形状识别，不是卫星图视觉模型。
+本项目采用 [GNU Affero General Public License v3.0](LICENSE) 开源。
