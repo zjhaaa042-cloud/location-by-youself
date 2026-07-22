@@ -1,6 +1,7 @@
 # Xcode
 *.xcuserdata
 *.xcworkspace
+*.xcodeproj/
 xcuserdata/
 DerivedData/
 build/
@@ -12,6 +13,16 @@ Pods/
 # Swift Package Manager
 .build/
 .swiftpm/
+Package.resolved
+
+# Local binary dependency checkout (project.yml uses remote OpenSSL-Package)
+LocationMocker/vendor/
+
+# Device pairing credentials — contain private keys, never commit
+pairing_record.mobiledevicepairing
+rp_pairing_file.plist
+**/Resources/Debug/*.mobiledevicepairing
+**/Resources/Debug/*pairing*.plist
 
 # OS
 .DS_Store
@@ -19,3 +30,5 @@ Thumbs.db
 
 # Temporary
 *.tmp.*
+__pycache__/
+*.py[cod]

@@ -9,6 +9,23 @@ struct SavedSettings: Codable, Equatable {
     var trackCenter: RoutePoint? = nil
     var naturalRunEnabled: Bool = true
     var trackOrientation: TrackOrientation = .vertical
+    var trackClockwise: Bool = true
+
+    /// 容错解码：旧版本存档缺少后加的字段（如 trackClockwise）时回退默认值，
+    /// 而不是整个解码失败丢掉全部已存设置
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        speedKmh = try c.decodeIfPresent(Float.self, forKey: .speedKmh) ?? 5
+        playbackMode = try c.decodeIfPresent(PlaybackMode.self, forKey: .playbackMode) ?? .once
+        points = try c.decodeIfPresent([RoutePoint].self, forKey: .points) ?? []
+        trackName = try c.decodeIfPresent(String.self, forKey: .trackName) ?? ""
+        trackCenter = try c.decodeIfPresent(RoutePoint.self, forKey: .trackCenter)
+        naturalRunEnabled = try c.decodeIfPresent(Bool.self, forKey: .naturalRunEnabled) ?? true
+        trackOrientation = try c.decodeIfPresent(TrackOrientation.self, forKey: .trackOrientation) ?? .vertical
+        trackClockwise = try c.decodeIfPresent(Bool.self, forKey: .trackClockwise) ?? true
+    }
+
+    init() {}
 }
 
 final class SettingsRepository: ObservableObject {
@@ -44,6 +61,11 @@ final class SettingsRepository: ObservableObject {
 
     func saveTrackOrientation(_ orientation: TrackOrientation) {
         settings.trackOrientation = orientation
+        persist()
+    }
+
+    func saveTrackClockwise(_ clockwise: Bool) {
+        settings.trackClockwise = clockwise
         persist()
     }
 

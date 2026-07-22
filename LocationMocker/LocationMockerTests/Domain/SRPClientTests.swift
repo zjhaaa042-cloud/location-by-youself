@@ -1,0 +1,68 @@
+import XCTest
+@testable import LocationMocker
+
+/// SRP-6a 完整流程测试向量（由 refs/gen_srp_vectors.py 生成，与 pymobiledevice3/srptools 对齐）。
+final class SRPClientTests: XCTestCase {
+
+    // 固定向量：salt / 客户端私钥 a / 设备公钥 B（pow(7, 0xC0FFEE, N)）
+    private let saltHex = "00112233445566778899aabbccddeeff"
+    private let aHex = "123456789ABCDEFFEDCBA9876543210A5A5A5A5A5A5A5A55A5A5A5A5A5A5A5A"
+    private let bHex =
+        "C17AD48C61CAA2F662455BE5A61B68CB9CECB7AC48C7668CDB14277FAB0AB7A9DBB6DE86B5E07989450072BCC2B847CE69BF8110C69F2838689438964FC6AECFBA1B9FC0D37C6D1F88F063DC601240428D5E6B6E856FA991CC19E41EDCFF71D3B0C7FE32EF92B258E428865580FCA342D7D1AE0BA97F9719A8245EC330523EDE3583CA498BF86B643CE89E402335A77CD46E085CC2D3ADE19C277AACE02D8332278A6FBBC3AF3CFF9E75101AAA44DAF4A5E5D0ADB02B3311207EC8FF3E34CBC12F46C43B6DFFAE9793E03284539D1545E5DBEA6D18B2A56662164E0B425187A01232963286D41B17D86CAE1606788C9ED97D943DC66FD2F572DDD8408DEA51CFC8D5FA66248BEAB54017F19C1BB1665A8AD333865356B9D644EEBCA5840324BB557044B73A26F96D555BB4DB9E257D4C85352D790AB2FD342481D722AAF934451623CDE198A8EFFE0C8F39A1D1319D9193B6BD79CA326B85974FCB38C6C1F85B1EEA7E298EFFB17155991E2CC341548680CAE56B9DFD08898119F3DC05FE0CAE"
+
+    // 期望值
+    private let expectedA =
+        "96CB1907304F2406FCB78893CD2913DBAEB6CF2E9A51FD291984D418BB1DF4ABDCEA61BA87E6F8CC21DD414E039204BCA1B731F0FEF67806CF7BEA48F3BA76E051A3D39D25701CF4BC52A27CBA8898A7C0940318CADDCF9158646E12A9F7CD69ACC116874707BCEA70DEF683D3C59AB57615E8D87E0DC5A5FEB1738F6160F194FF37CC9B1F789059782FE4CE4E70B6E69D698B5A2978D7F9323028BCFE3FFF7406F4B06F022CEBC1057AA5448D0AC7EDCC20B9B7ED6C051145AB5C1518BAFDD25EA2147A7F3D2756C51C45741EB9899B3C6073898A1EFEAB2B0B26882754012D59B84146C9DA1F5B5C77A89EB17A4D943A32B5643617FEC6319C60308AF0056AF5C0F035F9D63545A8CBB216F48480E324F12414B292DAD85456A3E08C276E673DB2664FB29603D4A31A8C7FF297A82013D84A9A28D4B599379E2A598706D33DADC2F3C6CB98242BB719BD1E1E6903408336E242174D78573158EC7686558BE99276AB866A59A162D438EF1EE481726B867ADDC89E1F8768619F4974FB3C13A5"
+    private let expectedK = "1ce49264f4ffe5b31ec8a89ef787800ef969242a8594128c49cc6fc1ea091c044b7bfd12cabb448c74d698a29df14094b967a0d0e2b3be28c26599d45cc98f52"
+    private let expectedM1 = "a4bb2d28e9aa455362f9c5611a1f9e7044b8e3a21da7d9233f46fe2c17131178e0d0304027816027d89d2773d935fcf2af31bd881b7d30459fde2408af2cb584"
+    private let expectedM2 = "df50d8a151cc123e3fdeafb98c77d9ef1391b0591f09d00363cf9d618af224004df8eefe004db8b62965622e38859686b07b89deb68043970549ca1d716d3f79"
+
+    func testFullSRPFlow() throws {
+        let salt = Data(hex: saltHex)!
+        let secret = Data(hex: aHex)!
+        var srp = SRPClient(salt: salt, pin: "000000", secret: secret)
+
+        // A = g^a mod N（384 字节补齐）
+        XCTAssertEqual(srp.clientPublicKey.count, 384)
+        XCTAssertEqual(srp.clientPublicKey.hexString, expectedA.lowercased())
+
+        try srp.processChallenge(serverPublicKey: Data(hex: bHex)!)
+        XCTAssertEqual(srp.sessionKey?.hexString, expectedK)
+        XCTAssertEqual(srp.clientProof?.hexString, expectedM1)
+
+        // M2 校验
+        XCTAssertTrue(srp.verifyServerProof(Data(hex: expectedM2)!))
+        // 篡改后必须失败
+        var badM2 = Data(hex: expectedM2)!
+        badM2[0] ^= 0xFF
+        XCTAssertFalse(srp.verifyServerProof(badM2))
+    }
+
+    func testRejectsZeroServerKey() {
+        var srp = SRPClient(salt: Data(hex: saltHex)!, pin: "000000", secret: Data(hex: aHex)!)
+        XCTAssertThrowsError(try srp.processChallenge(serverPublicKey: Data(repeating: 0, count: 384)))
+    }
+}
+
+// MARK: - 测试辅助
+
+extension Data {
+    init?(hex: String) {
+        var chars = Array(hex)
+        if chars.count % 2 != 0 { chars.insert("0", at: 0) }
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(chars.count / 2)
+        var i = 0
+        while i < chars.count {
+            guard let hi = UInt8(String(chars[i]), radix: 16),
+                  let lo = UInt8(String(chars[i + 1]), radix: 16) else { return nil }
+            bytes.append((hi << 4) | lo)
+            i += 2
+        }
+        self.init(bytes)
+    }
+
+    var hexString: String {
+        map { String(format: "%02x", $0) }.joined()
+    }
+}

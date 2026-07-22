@@ -1,6 +1,6 @@
 name: LocationMocker
 options:
-  bundleIdPrefix: com.example.locationmocker
+  bundleIdPrefix: com.zhangjiahui.locationmocker
   deploymentTarget:
     iOS: "17.0"
   xcodeVersion: "15.0"
@@ -8,6 +8,11 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
+
+packages:
+  OpenSSL:
+    url: https://github.com/krzyzanowskim/OpenSSL-Package.git
+    from: 3.6.2000
 
 targets:
   LocationMocker:
@@ -18,9 +23,28 @@ targets:
     settings:
       base:
         INFOPLIST_FILE: LocationMocker/Resources/Info.plist
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.locationmocker
+        PRODUCT_BUNDLE_IDENTIFIER: com.zhangjiahui.locationmocker
         DEVELOPMENT_TEAM: ""
-    dependencies: []
+        # M1 注意：Personal Team（免费账号）不被 Apple 允许 Network Extensions
+        # capability，真机签名会失败。付费账号下恢复下面一行即可启用 M1 隧道：
+        # CODE_SIGN_ENTITLEMENTS: LocationMocker/Resources/LocationMocker.entitlements
+    dependencies:
+      - package: OpenSSL
+      # M1 路径 A（付费账号）时恢复嵌入隧道扩展：
+      # - target: LocationMockerTunnel
+
+  LocationMockerTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: LocationMockerTunnel
+    settings:
+      base:
+        INFOPLIST_FILE: LocationMockerTunnel/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.zhangjiahui.locationmocker.tunnel
+        DEVELOPMENT_TEAM: ""
+        # 付费账号下恢复：
+        # CODE_SIGN_ENTITLEMENTS: LocationMockerTunnel/LocationMockerTunnel.entitlements
 
   LocationMockerTests:
     type: bundle.unit-test

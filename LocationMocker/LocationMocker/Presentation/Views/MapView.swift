@@ -9,13 +9,35 @@ struct MapView: View {
 
     var body: some View {
         MapReader { proxy in
-            Map(position: $mapPosition) {
+            Map(position: mapPosition) {
                 // Route polyline
                 if viewModel.routePolyline.count >= 2 {
                     MapPolyline(coordinates: viewModel.routePolyline.map {
                         CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon)
                     })
                     .stroke(.blue, lineWidth: 3)
+                }
+
+                // Track preview (aiming / adjusting / running)
+                if viewModel.trackPreview.count >= 2 {
+                    MapPolyline(coordinates: viewModel.trackPreview.map {
+                        CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon)
+                    })
+                    .stroke(.green, lineWidth: 4)
+                }
+
+                // Track start flag (fine-tuning stage)
+                if viewModel.trackSetupMode == .adjusting, let start = viewModel.trackStartPoint {
+                    Annotation("起点", coordinate: CLLocationCoordinate2D(
+                        latitude: start.lat,
+                        longitude: start.lon
+                    )) {
+                        Image(systemName: "flag.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.green)
+                            .padding(6)
+                            .background(Circle().fill(.white).shadow(radius: 2))
+                    }
                 }
 
                 // Markers
@@ -41,7 +63,14 @@ struct MapView: View {
                 }
             }
             .mapStyle(mapType == .satellite ? .imagery : .standard)
+            // 相机实时同步回 viewModel.mapRegion（iOS 17+），
+            // 保证「以地图中心生成跑道」用的是用户松手时真正的视野中心
+            .onMapCameraChange(frequency: .continuous) { context in
+                viewModel.mapRegion = context.region
+            }
             .onTapGesture { position in
+                // 瞄准/微调模式下点击地图不再误加标记点
+                guard viewModel.trackSetupMode == .off else { return }
                 if let coordinate = proxy.convert(position, from: .local) {
                     viewModel.addMarker(at: coordinate)
                 }
@@ -58,7 +87,7 @@ struct MapView: View {
         Binding(
             get: { .region(viewModel.mapRegion) },
             set: {
-                if case .region(let region) = $0 {
+                if let region = $0.region {
                     viewModel.mapRegion = region
                 }
             }

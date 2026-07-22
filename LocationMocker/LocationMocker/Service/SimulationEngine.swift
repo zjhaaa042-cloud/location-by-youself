@@ -13,11 +13,18 @@ final class SimulationEngine: ObservableObject {
     private var timer: Timer?
     private var paused = false
 
+    /// 后台保活（后台定位 + 静音音频）：模拟运行期间防止进程被系统挂起
+    private let keepAlive = BackgroundKeepAlive()
+
     var currentPoint: RoutePoint? { progress?.point }
+
+    /// 后台保活是否激活（供 UI 显示保活状态指示）
+    var isKeepAliveActive: Bool { keepAlive.isActive }
 
     func startFixed(point: RoutePoint) {
         stop()
         state = .running
+        keepAlive.start()
         paused = false
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -52,6 +59,7 @@ final class SimulationEngine: ObservableObject {
         }
 
         state = .running
+        keepAlive.start()
         let interval = Double(config.updateIntervalMs) / 1000.0
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -83,6 +91,7 @@ final class SimulationEngine: ObservableObject {
         config = nil
         progress = nil
         state = .idle
+        keepAlive.stop()
     }
 
     private func tick() {

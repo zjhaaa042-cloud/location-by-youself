@@ -5,10 +5,21 @@ struct ControlPanelView: View {
 
     @State private var showSettings = false
     @State private var showSaved = false
+    @State private var showDiagnostic = false
     @State private var speedSlider: Float = 8.5
 
     var body: some View {
         VStack(spacing: 12) {
+            if viewModel.isInjectionConnecting || viewModel.isInjectionStopping {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text(viewModel.isInjectionConnecting ? "正在建立手机独立注入链路…" : "正在清除系统定位…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             // Main action buttons
             mainActions
 
@@ -31,6 +42,17 @@ struct ControlPanelView: View {
         .sheet(isPresented: $showSaved) {
             SavedRoutesView()
         }
+        .sheet(isPresented: $showDiagnostic) {
+            DiagnosticView()
+        }
+        .onAppear {
+            // 无接触真机验证：devicectl launch 带 -autoDiagnostic 时自动打开诊断
+            let args = ProcessInfo.processInfo.arguments
+            if args.contains("-autoDiagnostic") || args.contains("-verifyLocation")
+                || ProcessInfo.processInfo.environment["AUTO_DIAGNOSTIC"] == "1" {
+                showDiagnostic = true
+            }
+        }
     }
 
     @ViewBuilder
@@ -44,7 +66,7 @@ struct ControlPanelView: View {
             ) {
                 viewModel.startRouteSimulation()
             }
-            .disabled(viewModel.markers.count < 2)
+            .disabled(viewModel.markers.count < 2 || viewModel.simulationControlsLocked)
 
             // Start fixed point
             actionButton(
@@ -54,19 +76,34 @@ struct ControlPanelView: View {
             ) {
                 viewModel.startFixedSimulation()
             }
-            .disabled(viewModel.markers.isEmpty)
+            .disabled(viewModel.markers.isEmpty || viewModel.simulationControlsLocked)
 
-            // Track running
-            actionButton(
-                title: "跑道",
-                icon: "figure.run.circle.fill",
-                color: .green
-            ) {
-                viewModel.detectNearbyTrack()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    viewModel.startTrackSimulation()
+            // Track running: manual aiming (primary) or POI-assisted detection
+            Menu {
+                Button {
+                    viewModel.beginTrackAiming()
+                } label: {
+                    Label("对准地图中心生成跑道", systemImage: "plus.viewfinder")
                 }
+                Button {
+                    viewModel.detectNearbyTrack()
+                } label: {
+                    Label("自动搜索附近操场跑道", systemImage: "location.magnifyingglass")
+                }
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "figure.run.circle.fill")
+                        .font(.title3)
+                    Text("跑道")
+                        .font(.system(size: 10))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Color.green.opacity(0.12))
+                .foregroundColor(.green)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
+            .disabled(viewModel.simulationControlsLocked)
 
             // Pause / Resume
             if viewModel.simulationState == .running {
@@ -129,6 +166,9 @@ struct ControlPanelView: View {
             .disabled(viewModel.markers.isEmpty)
             toolbarButton(icon: "square.and.arrow.up.fill", label: "GPX") {
                 viewModel.exportGPX()
+            }
+            toolbarButton(icon: "stethoscope", label: "诊断") {
+                showDiagnostic = true
             }
         }
     }
