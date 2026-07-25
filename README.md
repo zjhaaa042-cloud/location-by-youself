@@ -41,6 +41,7 @@ LocationMocker
 
 - macOS 与 Xcode 26（建议使用项目验证过的 Xcode 26.5）
 - iOS 17+ 真机，已开启“开发者模式”并信任当前 Mac
+- iPhone 必须开启 Wi-Fi，并连接到可用 Wi-Fi 网络
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - `pymobiledevice3` 9.x
 - 手机安装并连接 LocalDevVPN
@@ -98,10 +99,13 @@ open LocationMocker.xcodeproj
 首次运行前：
 
 1. 用 Xcode 连接一次手机，确保 Developer Disk Image 已挂载。
-2. 在手机打开 LocalDevVPN 并保持“已连接”。
-3. 打开 LocationMocker，选择位置后点“固定点”“路线模拟”或“跑道”。
-4. 顶部出现“系统注入”后，可在系统地图或其他使用 CoreLocation 的 App 中验证。
-5. 结束时回到 LocationMocker 点“停止”，等待“清除中”消失。
+2. 打开并连接 Wi-Fi。仅插 USB 或只使用蜂窝网络时，RemotePairing 链路可能无法建立。
+3. 在手机打开 LocalDevVPN 并保持“已连接”。
+4. 打开 LocationMocker，选择位置后点“固定点”“路线模拟”或“跑道”。
+5. 顶部出现“系统注入”后，可在系统地图或其他使用 CoreLocation 的 App 中验证。
+6. 结束时回到 LocationMocker 点“停止”，等待“清除中”消失。
+
+如果提示“无 LocalDevVPN”“系统定位注入失败”或错误 61 / `Connection refused`，请优先检查手机 Wi-Fi 是否已开启并已连接网络，然后重新连接 LocalDevVPN 再重试。
 
 ## 测试
 
@@ -119,6 +123,7 @@ xcodebuild \
 
 ## 已知限制
 
+- 纯手机端注入依赖 Wi-Fi 网络接口；关闭 Wi-Fi 时即使 LocalDevVPN 显示已连接，也可能无法完成系统定位注入。
 - 手机重启、DDI 状态变化或 LocalDevVPN 断开后需要重新建立会话。
 - App 内 DDI 自动挂载与断线自动重连尚未完成。
 - 模拟定位可能在断线后“粘住”；务必使用 App 的“停止”显式清除，必要时重启手机。
