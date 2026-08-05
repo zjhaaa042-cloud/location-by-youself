@@ -51,6 +51,27 @@ brew install xcodegen pipx
 pipx install pymobiledevice3
 ```
 
+## 安装并使用 LocalDevVPN
+
+LocalDevVPN 目前在中国大陆 App Store 不可用；下载前需要准备一个可访问该应用的境外 Apple 账号（例如美区账号）。请只使用自己注册和管理的账号，不要使用购买或共享账号。创建或切换账号时，可参考 [kjfx/AppleID 的美区 Apple 账号教程](https://github.com/kjfx/AppleID.git)。账号地区和应用上架情况可能会变化，以 App Store 实际显示为准。
+
+### 下载
+
+1. 在 iPhone 打开“设置” → Apple 账户 →“媒体与购买项目”。**只退出“媒体与购买项目”**，不要退出 iCloud 或移除设备上的主 Apple 账户。
+2. 使用准备好的境外 Apple 账号登录“媒体与购买项目”。
+3. 打开 [LocalDevVPN 的 App Store 页面](https://apps.apple.com/us/app/localdevvpn/id6755608044)，或在 App Store 搜索 `LocalDevVPN`，然后下载并安装。
+4. 下载完成后，可以在“媒体与购买项目”中切回日常使用的账号；已安装的 LocalDevVPN 不会因此被删除。后续如需更新该 App，可能仍需要切回下载它的账号。
+
+### 首次连接与日常使用
+
+1. 确认手机已开启 Wi-Fi，并连接到可用的 Wi-Fi 网络。
+2. 打开 LocalDevVPN，点击连接；iOS 弹出“添加 VPN 配置”或 VPN 权限提示时选择“允许”，并按提示验证设备密码。
+3. 等待 LocalDevVPN 显示“已连接”，同时在 iPhone“设置”中确认 VPN 状态已连接。
+4. 保持 LocalDevVPN 在已连接状态，再打开 LocationMocker 执行固定点、路线模拟或跑道模拟。
+5. 使用完毕后，先在 LocationMocker 中点击“停止”并等待清除完成，再按需断开 LocalDevVPN。
+
+> LocalDevVPN 在本项目中只负责提供手机本地回环隧道，并非用于将网络流量转发到外部服务器。若连接状态已显示正常但仍无法注入，请先确认 Wi-Fi 没有关闭，再断开并重新连接 LocalDevVPN。
+
 ## 首次配对（每台手机一次）
 
 RemotePairing 使用设备专属 Ed25519 私钥。仓库不会、也绝不能包含可直接使用的配对文件。
