@@ -72,6 +72,23 @@ LocalDevVPN 目前在中国大陆 App Store 不可用；下载前需要准备一
 
 > LocalDevVPN 在本项目中只负责提供手机本地回环隧道，并非用于将网络流量转发到外部服务器。若连接状态已显示正常但仍无法注入，请先确认 Wi-Fi 没有关闭，再断开并重新连接 LocalDevVPN。
 
+## 连接 iPhone 并安装 LocationMocker
+
+以下步骤需要在首次安装时完成；之后通常只需接线、解锁并在 Xcode 中点击运行即可。
+
+### 1. 准备手机与数据线
+
+1. 使用支持**数据传输**的 USB 数据线将 iPhone 直接连接到 Mac；避免使用只充电线、无供电扩展坞或连接不稳定的转接器。
+2. 解锁 iPhone，并在出现“要信任此电脑吗？”时点击“信任”，然后输入设备密码。
+3. 在 iPhone 打开“设置” →“隐私与安全性” →“开发者模式”，开启“开发者模式”。系统会要求重启；重启后再次确认开启，并重新解锁手机。
+4. 保持手机解锁并停留在主屏幕。若 Xcode 未识别设备，重新插拔数据线，并检查 Finder 的“位置”列表中是否能看到该 iPhone。
+
+### 2. 在 Xcode 确认设备可用
+
+1. 打开 Xcode，选择“Window” →“Devices and Simulators”。
+2. 在左侧选择 iPhone，确认没有“未信任”“正在准备设备”或“Developer Mode disabled”等提示；如有提示，按 Xcode 给出的操作完成信任、配对或准备。
+3. 设备名称旁显示可用状态后，再继续生成工程和安装。首次连接时 Xcode 会自动准备开发者支持文件（Developer Disk Image），请等待完成，不要拔掉数据线。
+
 ## 首次配对（每台手机一次）
 
 RemotePairing 使用设备专属 Ed25519 私钥。仓库不会、也绝不能包含可直接使用的配对文件。
@@ -105,7 +122,7 @@ LocationMocker/LocationMocker/Resources/Debug/rp_pairing_file.plist
 
 该文件和 lockdown 记录都含私钥，已由 `.gitignore` 排除。不要上传、分享或复制到其他设备。
 
-## 构建与安装
+## 构建、签名与安装
 
 配对文件生成后再生成 Xcode 工程，这样 XcodeGen 才会把本地记录加入开发构建：
 
@@ -115,7 +132,25 @@ xcodegen generate
 open LocationMocker.xcodeproj
 ```
 
-在 Xcode 中选择自己的 Team、唯一 Bundle Identifier 和目标 iPhone，然后运行。项目通过 Swift Package Manager 获取 `OpenSSL-Package` 3.6.2000，不需要提交本地二进制 vendor 目录。
+工程打开后按以下步骤签名并安装：
+
+1. 在左侧项目导航中选择 `LocationMocker` 项目，再选择 `LocationMocker` target。
+2. 打开“Signing & Capabilities”，勾选“Automatically manage signing”。
+3. 在“Team”中选择自己的 Apple 开发团队；使用免费 Apple 账号时选择 `Personal Team` 即可。
+4. 将“Bundle Identifier”改为全局唯一的值，例如 `com.yourname.LocationMocker`。若出现红色签名错误，先确认已登录 Xcode： “Xcode” →“Settings” →“Accounts”。
+5. 在顶部 Scheme 旁的设备列表中选择刚连接的 iPhone，**不要选择模拟器**。
+6. 点击左上角运行按钮（▶︎）。Xcode 会编译、签名并安装 App；首次安装需要等待依赖下载和设备准备完成。
+7. 安装完成后，iPhone 会自动打开 LocationMocker。若手机提示不信任开发者，前往“设置” →“通用” →“VPN 与设备管理”，选择对应的开发者 App 并点击“信任”。
+
+项目通过 Swift Package Manager 获取 `OpenSSL-Package` 3.6.2000，不需要提交本地二进制 vendor 目录。
+
+### 安装或运行失败时
+
+- Xcode 中没有 iPhone：确认数据线支持数据、手机已解锁并已点“信任”，然后关闭并重新打开“Devices and Simulators”。
+- 提示 Developer Mode 未开启：按上面的步骤开启开发者模式并完成重启确认。
+- 提示 Provisioning Profile、Signing 或 Bundle Identifier 错误：选择正确的 Team，并换成未被占用的 Bundle Identifier。
+- 安装后立即退出或无法启动：在 iPhone“VPN 与设备管理”中信任开发者证书；免费 Personal Team 签名通常 7 天后到期，需要重新用 Xcode 安装。
+- 显示正在准备设备或无法挂载 Developer Disk Image：保持数据线连接、手机解锁并保持网络可用，等待 Xcode 完成后重试。
 
 首次运行前：
 
