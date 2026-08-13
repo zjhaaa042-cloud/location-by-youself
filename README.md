@@ -89,7 +89,19 @@ LocalDevVPN 目前在中国大陆 App Store 不可用；下载前需要准备一
 2. 在左侧选择 iPhone，确认没有“未信任”“正在准备设备”或“Developer Mode disabled”等提示；如有提示，按 Xcode 给出的操作完成信任、配对或准备。
 3. 设备名称旁显示可用状态后，再继续生成工程和安装。首次连接时 Xcode 会自动准备开发者支持文件（Developer Disk Image），请等待完成，不要拔掉数据线。
 
-## 首次配对（每台手机一次）
+### 3. 一键完成配对与工程生成
+
+以下命令自动完成「查询 UDID → 导出 lockdown 记录 → 生成 RemotePairing 文件 → xcodegen 生成工程 → 打开 Xcode」:
+
+```bash
+tools/setup.sh
+```
+
+多台设备同时连接时脚本会列出候选供选择,也可用 `tools/setup.sh --udid YOUR_UDID` 直接指定。脚本只做命令行部分;打开 Xcode 后仍需按下文「构建、签名与安装」手动完成签名并点击运行。如果脚本中途失败,可按下面两节的手动步骤逐步排查。
+
+注意:`pipx install pymobiledevice3` 只对命令行生效;脚本内部用 `python3` 运行引导脚本,需要当前 `python3` 能 import 该包(例如 `pip3 install pymobiledevice3`,或在对应虚拟环境中运行)。
+
+## 首次配对(每台手机一次)
 
 RemotePairing 使用设备专属 Ed25519 私钥。仓库不会、也绝不能包含可直接使用的配对文件。
 
