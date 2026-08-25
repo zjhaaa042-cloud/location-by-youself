@@ -24,6 +24,7 @@ targets:
       base:
         INFOPLIST_FILE: LocationMocker/Resources/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.zhangjiahui.locationmocker
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         DEVELOPMENT_TEAM: ""
         # M1 注意：Personal Team（免费账号）不被 Apple 允许 Network Extensions
         # capability，真机签名会失败。付费账号下恢复下面一行即可启用 M1 隧道：
