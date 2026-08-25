@@ -154,14 +154,35 @@ open LocationMocker.xcodeproj
 6. 点击左上角运行按钮（▶︎）。Xcode 会编译、签名并安装 App；首次安装需要等待依赖下载和设备准备完成。
 7. 安装完成后，iPhone 会自动打开 LocationMocker。若手机提示不信任开发者，前往“设置” →“通用” →“VPN 与设备管理”，选择对应的开发者 App 并点击“信任”。
 
+> [!WARNING]
+> **免费 Personal Team 签名 7 天后到期。** 到期后 App 无法打开（点图标闪退或提示“不再可用”），这不是 Bug。只要在手机上还能看到图标，用 Xcode 重新点一次运行（▶︎）重装即可恢复，配对文件和 App 数据不受影响。长期使用建议养成「到期前重跑一次」的习惯，或改用付费开发者账号（签名有效期 1 年）。
+
 项目通过 Swift Package Manager 获取 `OpenSSL-Package` 3.6.2000，不需要提交本地二进制 vendor 目录。
+
+### 签名到期后的重装
+
+免费签名到期后无需重新配对、无需重新生成工程，任选一种方式重装：
+
+- **Xcode（推荐）**：接线并解锁 iPhone，打开 `LocationMocker.xcodeproj`，选中设备后点运行（▶︎）。
+- **命令行**：与 Xcode 安装效果相同，适合不打开 Xcode 的场景：
+
+  ```bash
+  cd LocationMocker
+  xcodebuild -project LocationMocker.xcodeproj -scheme LocationMocker \
+    -configuration Debug -destination 'id=YOUR_UDID' \
+    -allowProvisioningUpdates DEVELOPMENT_TEAM=YOUR_TEAM_ID build
+  xcrun devicectl device install app --device YOUR_UDID \
+    ~/Library/Developer/Xcode/DerivedData/LocationMocker-*/Build/Products/Debug-iphoneos/LocationMocker.app
+  ```
+
+  `YOUR_UDID` 用 `xcrun devicectl list devices` 查询；`YOUR_TEAM_ID` 在 Xcode「Signing & Capabilities」里选择 Team 后可从构建日志中查到。
 
 ### 安装或运行失败时
 
 - Xcode 中没有 iPhone：确认数据线支持数据、手机已解锁并已点“信任”，然后关闭并重新打开“Devices and Simulators”。
 - 提示 Developer Mode 未开启：按上面的步骤开启开发者模式并完成重启确认。
 - 提示 Provisioning Profile、Signing 或 Bundle Identifier 错误：选择正确的 Team，并换成未被占用的 Bundle Identifier。
-- 安装后立即退出或无法启动：在 iPhone“VPN 与设备管理”中信任开发者证书；免费 Personal Team 签名通常 7 天后到期，需要重新用 Xcode 安装。
+- 安装后立即退出或无法启动：在 iPhone“VPN 与设备管理”中信任开发者证书；若 7 天前安装过，参见上文「签名到期后的重装」。
 - 显示正在准备设备或无法挂载 Developer Disk Image：保持数据线连接、手机解锁并保持网络可用，等待 Xcode 完成后重试。
 
 首次运行前：
@@ -195,7 +216,7 @@ xcodebuild \
 - 手机重启、DDI 状态变化或 LocalDevVPN 断开后需要重新建立会话。
 - App 内 DDI 自动挂载与断线自动重连尚未完成。
 - 模拟定位可能在断线后“粘住”；务必使用 App 的“停止”显式清除，必要时重启手机。
-- 免费开发者签名通常 7 天到期。
+- 免费开发者签名 7 天到期，到期后需重装，见「签名到期后的重装」。
 - 部分应用会结合基站、运动传感器、网络或账户风控，单独修改 CoreLocation 不保证有效。
 - `LocationMockerTunnel` 是付费开发者账号可用的自建 Network Extension 实验目标，默认未嵌入主 App。
 
