@@ -4,9 +4,6 @@ import MapKit
 struct MapView: View {
     @EnvironmentObject var viewModel: MainViewModel
 
-    @State private var mapType: MKMapType = .standard
-    @State private var showMapPicker = false
-
     var body: some View {
         MapReader { proxy in
             Map(position: mapPosition) {
@@ -62,7 +59,7 @@ struct MapView: View {
                     }
                 }
             }
-            .mapStyle(mapType == .satellite ? .imagery : .standard)
+            .mapStyle(viewModel.mapIsSatellite ? .imagery : .standard)
             // 相机实时同步回 viewModel.mapRegion（iOS 17+），
             // 保证「以地图中心生成跑道」用的是用户松手时真正的视野中心
             .onMapCameraChange(frequency: .continuous) { context in
@@ -76,11 +73,6 @@ struct MapView: View {
                 }
             }
         }
-        .overlay(alignment: .topTrailing) {
-            mapTypeButton
-                .padding(.top, 52)
-                .padding(.trailing, 12)
-        }
     }
 
     private var mapPosition: Binding<MapCameraPosition> {
@@ -92,18 +84,5 @@ struct MapView: View {
                 }
             }
         )
-    }
-
-    private var mapTypeButton: some View {
-        Menu {
-            Button("标准地图") { mapType = .standard }
-            Button("卫星地图") { mapType = .satellite }
-        } label: {
-            Image(systemName: "map.fill")
-                .font(.title3)
-                .padding(10)
-                .background(.ultraThinMaterial)
-                .clipShape(Circle())
-        }
     }
 }
