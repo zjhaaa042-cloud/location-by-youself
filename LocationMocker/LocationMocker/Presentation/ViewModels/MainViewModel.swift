@@ -17,6 +17,8 @@ final class MainViewModel: ObservableObject {
         center: CLLocationCoordinate2D(latitude: 39.9042, longitude: 116.4074),
         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
     )
+    /// 地图样式：false = 标准，true = 卫星（按钮状态提升到这里，按钮才能放进布局流）
+    @Published var mapIsSatellite = false
     @Published var markers: [RoutePoint] = []
     @Published var routePolyline: [RoutePoint] = []
     @Published var currentLocation: RoutePoint?
@@ -62,6 +64,7 @@ final class MainViewModel: ObservableObject {
     let settingsRepo = SettingsRepository()
     let trackDetector = TrackDetector()
     let routePlanner = RoutePlanner()
+    let savedTracksRepo = SavedTracksRepository()
 
     private var cancellables = Set<AnyCancellable>()
     private var previousSimulationState: SimulationState = .idle
@@ -116,6 +119,12 @@ final class MainViewModel: ObservableObject {
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
 
+        // 跑道收藏库同样是嵌套 ObservableObject，转发变化刷新列表 UI
+        savedTracksRepo.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+
         injectionManager.$phase
             .receive(on: DispatchQueue.main)
             .sink { [weak self] phase in
@@ -129,6 +138,30 @@ final class MainViewModel: ObservableObject {
     }
 
     // MARK: - Map interactions
+
+    @Published var isLocating = false
+    private let locationLocator = CurrentLocationLocator()
+
+    /// 「定位到当前位置」：一次性读取系统定位并把地图镜头移过去。
+    /// 注入激活期间读到的是模拟坐标（与系统状态一致）。
+    func locateToCurrentPosition() {
+        guard !isLocating else { return }
+        isLocating = true
+        locationLocator.request { [weak self] coordinate in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isLocating = false
+                if let coordinate {
+                    self.mapRegion = MKCoordinateRegion(
+                        center: coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+                    )
+                } else {
+                    self.alertMessage = "无法获取当前位置。请确认定位服务已开启，并允许本 App 使用定位（设置 → 隐私与安全性 → 定位服务）。"
+                }
+            }
+        }
+    }
 
     func addMarker(at coordinate: CLLocationCoordinate2D) {
         let point = RoutePoint(lat: coordinate.latitude, lon: coordinate.longitude)
@@ -573,6 +606,54 @@ final class MainViewModel: ObservableObject {
             startOffsetMeters: trackStartOffsetMeters,
             clockwise: trackClockwise
         )
+    }
+
+    // MARK: - 跑道收藏（保存 / 载入 / 分享）
+
+    /// 把当前微调中的跑道参数存入收藏库（同名覆盖）
+    func saveCurrentTrackToLibrary() {
+        guard trackSetupMode == .adjusting, let center = trackWorkingCenter else { return }
+        let name = trackName.isEmpty ? "未命名跑道" : trackName
+        savedTracksRepo.add(SavedTrack(
+            name: name,
+            center: center,
+            perimeterMeters: trackPerimeterMeters,
+            rotationDegrees: trackRotationDegrees,
+            startOffsetMeters: trackStartOffsetMeters,
+            clockwise: trackClockwise
+        ))
+        alertMessage = "已保存跑道「\(name)」，可在「保存的路线」中载入或分享。"
+    }
+
+    /// 载入收藏的跑道：恢复全部生成参数并进入微调状态，地图移到跑道中心
+    func loadSavedTrack(_ track: SavedTrack) {
+        if simulationState == .running || simulationState == .paused {
+            stopSimulation()
+        }
+        trackName = track.name
+        trackWorkingCenter = track.center
+        trackRotationDegrees = track.rotationDegrees
+        trackPerimeterMeters = track.perimeterMeters
+        trackStartOffsetMeters = min(track.startOffsetMeters, track.perimeterMeters)
+        trackClockwise = track.clockwise
+        regenerateTrackPreview()
+        mapRegion.center = CLLocationCoordinate2D(latitude: track.center.lat, longitude: track.center.lon)
+        trackSetupMode = .adjusting
+    }
+
+    /// 按收藏参数重建跑道折线并导出 GPX，返回文件 URL（用于系统分享面板）
+    func exportTrackGPX(_ track: SavedTrack) -> URL? {
+        let points = TrackRoutePlanner().generateOvalTrack(
+            center: track.center,
+            perimeterMeters: track.perimeterMeters,
+            rotationDegrees: track.rotationDegrees,
+            startOffsetMeters: track.startOffsetMeters,
+            clockwise: track.clockwise
+        )
+        guard points.count >= 2 else { return nil }
+        let gpx = GPXExporter.generateGPX(name: track.name, points: points, speedMs: speedKmh / 3.6)
+        let safeName = track.name.replacingOccurrences(of: " ", with: "_")
+        return GPXExporter.saveGPX(gpx, fileName: safeName)
     }
 
     // MARK: - GPX export

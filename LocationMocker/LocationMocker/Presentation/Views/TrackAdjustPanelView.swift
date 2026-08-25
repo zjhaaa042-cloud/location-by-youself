@@ -19,6 +19,17 @@ struct TrackAdjustPanelView: View {
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
+                // 保存到跑道收藏库（同名覆盖），之后可随时载入或导出 GPX 分享
+                Button {
+                    viewModel.saveCurrentTrackToLibrary()
+                } label: {
+                    Image(systemName: "bookmark.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .padding(8)
+                        .background(Color.blue.opacity(0.12))
+                        .foregroundColor(.blue)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
             }
 
             // 周长预设

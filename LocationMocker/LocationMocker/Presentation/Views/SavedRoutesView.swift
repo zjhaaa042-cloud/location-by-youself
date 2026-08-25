@@ -5,11 +5,13 @@ struct SavedRoutesView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var savedGPXFiles: [String] = []
+    @State private var trackShareURL: URL?
 
     var body: some View {
         NavigationStack {
             Group {
-                if viewModel.markers.isEmpty && savedGPXFiles.isEmpty {
+                if viewModel.markers.isEmpty && savedGPXFiles.isEmpty
+                    && viewModel.savedTracksRepo.tracks.isEmpty {
                     ContentUnavailableView(
                         "没有保存的路线",
                         systemImage: "map",
@@ -33,6 +35,42 @@ struct SavedRoutesView: View {
                                 .onDelete { indexSet in
                                     viewModel.markers.remove(atOffsets: indexSet)
                                     viewModel.routePolyline.remove(atOffsets: indexSet)
+                                }
+                            }
+                        }
+
+                        if !viewModel.savedTracksRepo.tracks.isEmpty {
+                            Section("已保存的跑道") {
+                                ForEach(viewModel.savedTracksRepo.tracks) { track in
+                                    HStack {
+                                        Image(systemName: "figure.run")
+                                            .foregroundColor(.orange)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(track.name)
+                                                .font(.subheadline)
+                                            Text("\(Int(track.perimeterMeters))m · \(String(format: "%.5f, %.5f", track.center.lat, track.center.lon))")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                                .lineLimit(1)
+                                        }
+                                        Spacer()
+                                        Button {
+                                            shareTrack(track)
+                                        } label: {
+                                            Image(systemName: "square.and.arrow.up")
+                                                .font(.subheadline)
+                                                .foregroundColor(.blue)
+                                        }
+                                        .buttonStyle(.borderless)
+                                    }
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        viewModel.loadSavedTrack(track)
+                                        dismiss()
+                                    }
+                                }
+                                .onDelete { indexSet in
+                                    viewModel.savedTracksRepo.delete(atOffsets: indexSet)
                                 }
                             }
                         }
@@ -62,6 +100,21 @@ struct SavedRoutesView: View {
             .onAppear {
                 loadGPXFiles()
             }
+            .sheet(isPresented: Binding(
+                get: { trackShareURL != nil },
+                set: { if !$0 { trackShareURL = nil } }
+            )) {
+                if let url = trackShareURL {
+                    ShareSheet(items: [url])
+                }
+            }
+        }
+    }
+
+    private func shareTrack(_ track: SavedTrack) {
+        trackShareURL = viewModel.exportTrackGPX(track)
+        if trackShareURL == nil {
+            viewModel.alertMessage = "跑道「\(track.name)」导出失败"
         }
     }
 
