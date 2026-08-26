@@ -8,6 +8,7 @@ struct LocationMockerApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(viewModel)
+                .onAppear { ExpiryReminder.schedule() }
         }
     }
 }

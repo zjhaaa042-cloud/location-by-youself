@@ -5,6 +5,7 @@ struct ContentView: View {
     @EnvironmentObject var viewModel: MainViewModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var isVPNInstalled = true
+    @State private var signatureDaysRemaining: Int?
 
     var body: some View {
         ZStack {
@@ -24,6 +25,12 @@ struct ContentView: View {
                 // LocalDevVPN 未安装时引导跳转 App Store（注入依赖其回环隧道）
                 if !isVPNInstalled {
                     vpnInstallBanner
+                        .padding(.horizontal)
+                }
+
+                // 免费签名 7 天到期：剩余 ≤2 天时醒目提醒重装
+                if let days = signatureDaysRemaining, days <= 2 {
+                    signatureExpiryBanner(days: days)
                         .padding(.horizontal)
                 }
 
@@ -88,11 +95,34 @@ struct ContentView: View {
                 ShareSheet(items: [url])
             }
         }
-        .onAppear { isVPNInstalled = LocalDevVPNGuide.isInstalled }
+        .onAppear {
+            isVPNInstalled = LocalDevVPNGuide.isInstalled
+            signatureDaysRemaining = SignatureExpiry.daysRemaining
+        }
         .onChange(of: scenePhase) { _, phase in
             // 从 App Store 装完回到 App 时刷新，引导条自动消失
             if phase == .active { isVPNInstalled = LocalDevVPNGuide.isInstalled }
         }
+    }
+
+    /// 签名到期提醒横幅：免费 Personal Team 描述文件 7 天到期，需连电脑重装
+    private func signatureExpiryBanner(days: Int) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "clock.badge.exclamationmark.fill")
+                .font(.system(size: 20))
+                .foregroundColor(.red)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(days <= 0 ? "签名今天到期" : "签名 \(days) 天后到期")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("到期后 App 将无法打开，请尽快连接电脑重新安装一次")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     /// LocalDevVPN 未安装引导条：一键跳转 App Store 安装页
