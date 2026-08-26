@@ -20,6 +20,8 @@ LocationMocker 是一个实验性的 iOS 真机系统级定位模拟工具。它
 - 多点路线：单次、循环、往返
 - 跑道生成：地图中心对准、附近操场候选、方向/周长/起点微调
 - 跑道收藏：微调结果一键保存，随时载入复用或导出 GPX 分享
+- 一键定位到当前位置
+- 签名到期提醒：读取内嵌描述文件计算剩余天数，到期前 1 天本地通知 + 到期前 2 天 App 内横幅
 - 自然跑步速度与轻微轨迹漂移
 - 后台定位与静音音频保活
 - 一键停止：发送 `stopLocationSimulation` 后保持隧道 3 秒再断开
@@ -156,7 +158,7 @@ open LocationMocker.xcodeproj
 7. 安装完成后，iPhone 会自动打开 LocationMocker。若手机提示不信任开发者，前往“设置” →“通用” →“VPN 与设备管理”，选择对应的开发者 App 并点击“信任”。
 
 > [!WARNING]
-> **免费 Personal Team 签名 7 天后到期。** 到期后 App 无法打开（点图标闪退或提示“不再可用”），这不是 Bug。只要在手机上还能看到图标，用 Xcode 重新点一次运行（▶︎）重装即可恢复，配对文件和 App 数据不受影响。长期使用建议养成「到期前重跑一次」的习惯，或改用付费开发者账号（签名有效期 1 年）。
+> **免费 Personal Team 签名 7 天后到期。** 到期后 App 无法打开（点图标闪退或提示“不再可用”），这不是 Bug。只要在手机上还能看到图标，用 Xcode 重新点一次运行（▶︎）重装即可恢复，配对文件和 App 数据不受影响。**想彻底摆脱手动重签，推荐按下文「摆脱 7 天重签：SideStore 自动续签」配置 SideStore**，之后由手机自动续期。
 
 项目通过 Swift Package Manager 获取 `OpenSSL-Package` 3.6.2000，不需要提交本地二进制 vendor 目录。
 
@@ -177,6 +179,48 @@ open LocationMocker.xcodeproj
   ```
 
   `YOUR_UDID` 用 `xcrun devicectl list devices` 查询；`YOUR_TEAM_ID` 在 Xcode「Signing & Capabilities」里选择 Team 后可从构建日志中查到。
+
+### 摆脱 7 天重签：SideStore 自动续签（推荐）
+
+免费账号的 7 天限制可以靠 [SideStore](https://sidestore.io) 解决：它把重签流程搬到手机上，到期前自动续期，日常使用完全无感。前提条件只有一个：手机定期连接 Wi-Fi（续签时 LocalDevVPN 需保持连接）。
+
+**用 iLoader 安装 SideStore（iOS 26 推荐路径）**
+
+[iLoader](https://iloader.site) 是 SideStore 官方的新一代安装器，自动处理证书与配对文件，比 AltServer 省心得多：
+
+1. 下载 iLoader macOS 版并打开（首次打开如被 Gatekeeper 拦截，右键 → 打开）。
+2. **关闭 Mac 上的系统代理 / 代理客户端**。代理拦截 `gsa.apple.com` 认证会导致登录报 "The data is not in the correct format"。
+3. iLoader → Settings → **Anisette 服务器**：默认的 `ani.sidestore.io` 在中国大陆不可达，改用 `ani.stikstore.app`（实测可直连），否则登录超时（"deadline has elapsed"）。
+4. 登录 Apple ID（iLoader 凭据只发往苹果服务器，开源可审计）。
+5. USB 连接并解锁 iPhone，选择设备 → **「SideStore（稳定版）」**，等待签名、安装、配对文件注入自动完成。
+
+**手机端初始化**
+
+1. 设置 → 通用 → VPN与设备管理 → 信任新开发者证书。
+2. 手机连 Wi-Fi，打开 LocalDevVPN 保持连接（SideStore 续签走回环隧道）。
+3. 打开 SideStore → 登录 Apple ID → **Refresh Now**，全程不锁屏不切出；成功后 App 会自动退出，属正常。
+4. SideStore → My Apps → + → 导入 LocationMocker 的 IPA（见下）→ 弹窗选 **「Keep App Extensions (Use Main Profile)」**（包内是必需的 OpenSSL 框架，不能移除；该选项不额外占用 App ID 配额）。
+
+**生成 LocationMocker.ipa**（交给 SideStore 托管用）：
+
+```bash
+rm -rf /tmp/ipabuild && mkdir -p /tmp/ipabuild/Payload
+cp -R ~/Library/Developer/Xcode/DerivedData/LocationMocker-*/Build/Products/Debug-iphoneos/LocationMocker.app /tmp/ipabuild/Payload/
+(cd /tmp/ipabuild && zip -qr LocationMocker.ipa Payload)
+```
+
+IPA 内含本机的 RemotePairing 私钥，只传给自己手机，不要分享。
+
+**之后的使用**：SideStore 会在后台自动续签它自己和其他托管 App。My Apps 里每个 App 旁显示剩余天数，某天看到天数又变回 7 天就是续签成功了。若意外过期：连 Wi-Fi + 开 LocalDevVPN → SideStore → My Apps → 点刷新即可。
+
+**踩过的坑（排查备查）**
+
+- AltServer/iLoader 登录报 "data is not in the correct format"：Mac 系统代理拦截了 `gsa.apple.com`，关闭代理客户端后重试。
+- iLoader 登录超时 "deadline has elapsed"：默认 anisette 服务器被墙，按上文换 `ani.stikstore.app`。
+- SideStore 刷新报 "could not determine this device's UDID" / "AFC was unable to manage files"：iOS 26 与老工具（jitterbugpair/pymobiledevice3）生成的配对文件不兼容，**用 iLoader 重装即可**（它会生成新格式配对文件）；同时保持手机解锁、LocalDevVPN 已连接。
+- 安装报 7460（已有生效证书）：在 SideStore Settings 里 Revoke All Certificates 后重试。
+- 安装报 7252（证书序列号不存在）：钥匙串残留已被注销的旧 Xcode 证书，执行 `security delete-certificate -c "Apple Development: <账号> (<TEAMID>)"` 删除后重试。
+- SideStore 托管版的 Bundle ID 会带 Team ID 后缀（如 `com.zhangjiahui.locationmocker.G89NT3CMMF`），与 devicectl 直装版是两个独立 App，直装版可删除。
 
 ### 安装或运行失败时
 
