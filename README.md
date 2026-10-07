@@ -16,6 +16,7 @@ LocationMocker 是一个实验性的 iOS 真机系统级定位模拟工具，支
 - [已知限制](#已知限制)
 - [运行测试](#运行测试)
 - [项目结构](#项目结构)
+- [Windows 安装与续签方案](#windows-安装与续签方案)
 - [安全说明](#安全说明)
 
 ---
@@ -305,6 +306,10 @@ LocationMocker/
 tools/
 └── bootstrap_rp_pairing.py     # 一次性 RemotePairing 引导
 ```
+
+## Windows 安装与续签方案
+
+Windows 端安装、重新签名、证书续签和设备配对的设计方案见：[Windows 安装与证书续签方案](docs/windows-installer-renewal-plan.md)。
 
 ## 安全说明
 
