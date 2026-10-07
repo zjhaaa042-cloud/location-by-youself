@@ -27,6 +27,11 @@ struct SettingsView: View {
                         Text("手动匀速").tag(RouteProfile.manual)
                         Text("自然跑步").tag(RouteProfile.trackRunning)
                     }
+                    if viewModel.routeProfile == .trackRunning {
+                        Label("跑道模式会自动持续绕圈，点击“停止”结束", systemImage: "repeat")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("跑道设置") {
