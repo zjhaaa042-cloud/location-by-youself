@@ -311,7 +311,7 @@ tools/
 
 Windows 端安装、重新签名、证书续签和设备配对的设计方案见：[Windows 安装与证书续签方案](docs/windows-installer-renewal-plan.md)。
 
-已提供 Windows 桌面界面和命令行工具，使用方法见 [Windows 安装工具](windows/README.md)。支持生成设备专属 IPA 供 iLoader 签名，以及使用已有 P12 和新描述文件重签覆盖安装；Windows 真机兼容性仍需验证。
+已提供 Windows 桌面界面和命令行工具，使用方法见 [Windows 安装工具](windows/README.md)。内置免费 Apple ID 交互登录及电脑端重签安装，无需 SideStore；也支持 P12 模式和 iLoader 备用流程。Windows 真机兼容性仍需验证。
 
 ## 安全说明
 

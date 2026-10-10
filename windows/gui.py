@@ -14,18 +14,19 @@ import installer
 def main():
     root = tk.Tk()
     root.title('LocationMocker · Windows 安装与续签')
-    root.geometry('750x510')
+    root.geometry('750x570')
     frame = ttk.Frame(root, padding=20)
     frame.pack(fill='both', expand=True)
     values = {}
     for row, (name, label) in enumerate((('udid', '设备 UDID'), ('ipa', 'LocationMocker IPA'),
                                        ('p12', '签名证书 P12'), ('profile', '新描述文件'),
-                                       ('zsign', 'zsign 路径'), ('openssl', 'OpenSSL 路径'))):
+                                       ('zsign', 'zsign 路径'), ('openssl', 'OpenSSL 路径'),
+                                       ('anisette', '登录辅助服务（可留空）'))):
         ttk.Label(frame, text=label).grid(row=row, column=0, sticky='w', pady=5)
         value = tk.StringVar(value=name if name in ('zsign', 'openssl') else '')
         values[name] = value
         ttk.Entry(frame, textvariable=value, width=60).grid(row=row, column=1, sticky='ew')
-        if name != 'udid':
+        if name not in ('udid', 'anisette'):
             def browse(target=value):
                 selected = filedialog.askopenfilename()
                 if selected:
@@ -33,7 +34,7 @@ def main():
             ttk.Button(frame, text='选择', command=browse).grid(row=row, column=2)
     frame.columnconfigure(1, weight=1)
     output = tk.Text(frame, height=9, wrap='word', state='disabled')
-    output.grid(row=8, column=0, columnspan=3, sticky='nsew', pady=10)
+    output.grid(row=9, column=0, columnspan=3, sticky='nsew', pady=10)
     events = queue.Queue()
     buttons = []
 
@@ -52,6 +53,8 @@ def main():
                 return
             prefix = [sys.executable, '--cli'] if getattr(sys, 'frozen', False) else [sys.executable, str(Path(__file__).with_name('installer.py'))]
             command = [*prefix, 'free-renew', '--udid', args.udid, '--ipa', args.ipa]
+            if args.anisette:
+                command.extend(['--anisette', args.anisette])
             flags = subprocess.CREATE_NEW_CONSOLE if sys.platform == 'win32' else 0
             try:
                 subprocess.Popen(command, creationflags=flags)
@@ -89,16 +92,16 @@ def main():
         threading.Thread(target=worker, daemon=True).start()
 
     bar = ttk.Frame(frame)
-    bar.grid(row=6, column=0, columnspan=3, pady=12)
+    bar.grid(row=7, column=0, columnspan=3, pady=12)
     for kind, title in (('devices', '检测手机'), ('prepare', '生成 iLoader 专用 IPA'),
                         ('status', '检查 IPA 到期日'), ('install', '签名并安装 / 续签')):
         button = ttk.Button(bar, text=title, command=lambda k=kind: action(k))
         button.pack(side='left', padx=3)
         buttons.append(button)
     ttk.Button(frame, text='获取 iLoader（免费 Apple ID 签名）',
-               command=lambda: webbrowser.open('https://github.com/nab138/iloader')).grid(row=7, columnspan=3)
+               command=lambda: webbrowser.open('https://github.com/nab138/iloader')).grid(row=8, columnspan=3)
     free_button = ttk.Button(frame, text='免费 Apple ID：电脑安装 / 续签', command=lambda: action('free'))
-    free_button.grid(row=9, columnspan=3, pady=5)
+    free_button.grid(row=10, columnspan=3, pady=5)
     buttons.append(free_button)
 
     def poll():
