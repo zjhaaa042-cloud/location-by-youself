@@ -29,7 +29,8 @@ class InstallerTests(unittest.TestCase):
             installer.validate_profile(self.profile(), 'phone', 'another.app')
 
     def test_archive_attacks(self):
-        for name in ('../outside', '/absolute', 'Payload/A.app/../../escape', 'C:/file', 'Payload\\evil'):
+        for name in ('../outside', '/absolute', 'Payload/A.app/../../escape', 'C:/file', 'Payload\\evil',
+                     'Payload/A.app/file.', 'Payload/A.app/file ', 'Payload/A.app/NUL.txt', 'Payload/A.app/.. /escape'):
             with tempfile.TemporaryDirectory() as temp:
                 ipa = Path(temp) / 'bad.ipa'
                 with zipfile.ZipFile(ipa, 'w') as archive:
@@ -43,7 +44,10 @@ class InstallerTests(unittest.TestCase):
             ipa, output = Path(temp) / 'input.ipa', Path(temp) / 'output.ipa'
             with zipfile.ZipFile(ipa, 'w') as archive:
                 archive.writestr('Payload/LocationMocker.app/Info.plist', plistlib.dumps({'CFBundleIdentifier': 'com.example.app'}))
-                archive.writestr('Payload/LocationMocker.app/Frameworks/OpenSSL.framework/OpenSSL', b'binary')
+                binary = zipfile.ZipInfo('Payload/LocationMocker.app/Frameworks/OpenSSL.framework/OpenSSL')
+                binary.create_system = 3
+                binary.external_attr = 0o100755 << 16
+                archive.writestr(binary, b'binary')
             async def pairing(udid, target):
                 target.write_bytes(plistlib.dumps({'identifier': udid}))
             with patch.object(installer, 'require_device'), patch.object(installer, 'make_pairing', pairing):
@@ -51,6 +55,7 @@ class InstallerTests(unittest.TestCase):
             self.assertTrue(result['requires_signing'])
             with zipfile.ZipFile(output) as archive:
                 self.assertEqual(archive.read('Payload/LocationMocker.app/Frameworks/OpenSSL.framework/OpenSSL'), b'binary')
+                self.assertEqual(archive.getinfo(binary.filename).external_attr >> 16, 0o100755)
                 self.assertEqual(plistlib.loads(archive.read('Payload/LocationMocker.app/rp_pairing_file.plist'))['identifier'], 'phone')
 
     def test_subprocess_errors_hide_secrets(self):

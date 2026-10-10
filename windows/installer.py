@@ -64,9 +64,14 @@ def unpack(ipa, directory):
         for member in archive.infolist():
             path = PurePosixPath(member.filename)
             total += member.file_size
-            key = member.filename.casefold()
+            key = path.as_posix().casefold()
+            # Windows normalizes trailing dots/spaces and reserves DOS device names.
+            reserved = {'con', 'prn', 'aux', 'nul', *(f'com{i}' for i in range(1, 10)), *(f'lpt{i}' for i in range(1, 10))}
+            unsafe_component = any(part.endswith(('.', ' ')) or
+                                   part.split('.')[0].casefold() in reserved or
+                                   any(c in part for c in '<>"|?*') for part in path.parts)
             if (path.is_absolute() or '..' in path.parts or '\\' in member.filename
-                    or ':' in member.filename or key in seen
+                    or ':' in member.filename or key in seen or unsafe_component
                     or stat.S_ISLNK(member.external_attr >> 16) or total > 2_000_000_000):
                 raise InstallError('INVALID_IPA', 'IPA 包含不安全或过大的文件。')
             seen.add(key)
@@ -79,11 +84,19 @@ def unpack(ipa, directory):
     return apps[0]
 
 
-def pack(directory, destination):
+def pack(directory, destination, original_modes=None):
     with zipfile.ZipFile(destination, 'w', zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(directory.rglob('*')):
             if path.is_file():
-                archive.write(path, path.relative_to(directory).as_posix())
+                name = path.relative_to(directory).as_posix()
+                info = zipfile.ZipInfo.from_file(path, name)
+                if original_modes and name in original_modes:
+                    info.create_system = 3
+                    info.external_attr = original_modes[name]
+                info.compress_type = zipfile.ZIP_DEFLATED
+                with path.open('rb') as source, archive.open(info, 'w') as target:
+                    import shutil
+                    shutil.copyfileobj(source, target)
 
 
 def profile_data(raw, openssl='openssl'):
@@ -151,9 +164,11 @@ def prepare(args):
     with tempfile.TemporaryDirectory(prefix='locationmocker-') as temporary:
         directory = Path(temporary) / 'package'
         app = unpack(Path(args.ipa), directory)
+        with zipfile.ZipFile(args.ipa) as original:
+            modes = {PurePosixPath(m.filename).as_posix(): m.external_attr for m in original.infolist()}
         asyncio.run(asyncio.wait_for(make_pairing(args.udid, app / 'rp_pairing_file.plist'), timeout=90))
         # An IPA modified after signing cannot be installed until signed again.
-        pack(directory, output)
+        pack(directory, output, original_modes=modes)
     return {'output': str(output), 'requires_signing': True}
 
 
