@@ -5,6 +5,9 @@ import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, simpledialog
 import webbrowser
+import subprocess
+import sys
+from pathlib import Path
 import installer
 
 
@@ -43,6 +46,19 @@ def main():
     def action(kind):
         args = Namespace(**{k: v.get().strip() for k, v in values.items()})
         password = None
+        if kind == 'free':
+            if not args.udid or not args.ipa:
+                show('请先检测手机并选择原始 LocationMocker IPA。')
+                return
+            prefix = [sys.executable, '--cli'] if getattr(sys, 'frozen', False) else [sys.executable, str(Path(__file__).with_name('installer.py'))]
+            command = [*prefix, 'free-renew', '--udid', args.udid, '--ipa', args.ipa]
+            flags = subprocess.CREATE_NEW_CONSOLE if sys.platform == 'win32' else 0
+            try:
+                subprocess.Popen(command, creationflags=flags)
+                show('已打开免费账号续签窗口。请在该窗口输入 Apple ID、密码和验证码；以窗口最终结果为准。')
+            except OSError:
+                show('无法打开续签窗口，请使用命令行 free-renew。')
+            return
         if kind == 'prepare':
             args.output = filedialog.asksaveasfilename(defaultextension='.ipa')
             if not args.output:
@@ -81,6 +97,9 @@ def main():
         buttons.append(button)
     ttk.Button(frame, text='获取 iLoader（免费 Apple ID 签名）',
                command=lambda: webbrowser.open('https://github.com/nab138/iloader')).grid(row=7, columnspan=3)
+    free_button = ttk.Button(frame, text='免费 Apple ID：电脑安装 / 续签', command=lambda: action('free'))
+    free_button.grid(row=9, columnspan=3, pady=5)
+    buttons.append(free_button)
 
     def poll():
         try:
@@ -110,5 +129,10 @@ if __name__ == '__main__':
         import runpy
         sys.argv = ['pymobiledevice3', *sys.argv[2:]]
         runpy.run_module('pymobiledevice3', run_name='__main__')
+    elif len(sys.argv) > 1 and sys.argv[1] == '--cli':
+        code = installer.main(sys.argv[2:])
+        if 'free-renew' in sys.argv:
+            input('按回车关闭窗口…')
+        sys.exit(code)
     else:
         main()

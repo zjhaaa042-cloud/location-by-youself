@@ -1,0 +1,11 @@
+[package]
+name = "locationmocker-free-sign"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+isideload = "=0.4.4"
+idevice = { version = "=0.1.61", default-features = false, features = ["usbmuxd", "ring"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+rpassword = "7"

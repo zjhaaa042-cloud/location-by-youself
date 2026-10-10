@@ -65,6 +65,34 @@ class InstallerTests(unittest.TestCase):
             installer.pmd('usbmux', 'list')
             self.assertEqual(run.call_args.args[0][1:], ['--pmd', 'usbmux', 'list'])
 
+    def test_free_renew_uses_interactive_helper_and_cleans_ipa(self):
+        from argparse import Namespace
+        import subprocess
+        with tempfile.TemporaryDirectory() as temp:
+            helper = Path(temp) / 'helper.exe'
+            helper.touch()
+            def prepare(args):
+                Path(args.output).write_bytes(b'private pairing')
+            with patch.object(installer, 'prepare', prepare), patch.object(installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)) as run:
+                result = installer.free_renew(Namespace(helper=str(helper), ipa='original.ipa', udid='phone', anisette='https://example.test'))
+                command = run.call_args.args[0]
+                self.assertEqual(command[1], 'phone')
+                self.assertEqual(command[3], 'https://example.test')
+                self.assertNotIn('capture_output', run.call_args.kwargs)
+                self.assertFalse(Path(command[2]).exists())
+                self.assertTrue(result['installed'])
+
+    def test_free_renew_failure_is_not_reported_as_success(self):
+        from argparse import Namespace
+        import subprocess
+        with tempfile.TemporaryDirectory() as temp:
+            helper = Path(temp) / 'helper.exe'
+            helper.touch()
+            with patch.object(installer, 'prepare'), patch.object(installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)):
+                with self.assertRaises(installer.InstallError) as error:
+                    installer.free_renew(Namespace(helper=str(helper), ipa='app.ipa', udid='phone', anisette=''))
+                self.assertEqual(error.exception.code, 'FREE_SIGN_FAILED')
+
 
 if __name__ == '__main__':
     unittest.main()

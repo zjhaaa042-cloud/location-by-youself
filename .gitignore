@@ -40,3 +40,4 @@ __pycache__/
 .venv/
 dist/
 *.spec
+windows/free-sign/target/

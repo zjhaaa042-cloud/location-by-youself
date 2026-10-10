@@ -209,11 +209,39 @@ def status(args):
     return {'bundle': bundle, **validate_profile(profile, args.udid, bundle)}
 
 
+def free_renew(args):
+    helper = Path(args.helper).resolve()
+    if not helper.is_file():
+        raise InstallError('DEPENDENCY_MISSING', '缺少免费账号签名组件，请下载完整 Windows 程序包。')
+    if args.anisette and not args.anisette.startswith('https://'):
+        raise InstallError('INVALID_SERVER', 'Anisette 服务器必须使用 HTTPS。')
+    with tempfile.TemporaryDirectory(prefix='locationmocker-free-') as temporary:
+        output = Path(temporary) / 'personal.ipa'
+        from argparse import Namespace
+        prepare(Namespace(ipa=args.ipa, udid=args.udid, output=str(output)))
+        command = [str(helper), args.udid, str(output)]
+        if args.anisette:
+            command.append(args.anisette)
+        # Login and verification prompts stay in the local console, never in argv/logs.
+        try:
+            result = subprocess.run(command, timeout=1200)
+        except subprocess.TimeoutExpired:
+            raise InstallError('TIMEOUT', '免费账号登录或签名超时，请重新操作。')
+        if result.returncode:
+            raise InstallError('FREE_SIGN_FAILED', '免费账号重签失败，请检查验证码、网络、证书配额和设备信任。')
+    return {'installed': True, 'provider': 'isideload', 'verification': 'installation service accepted'}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description='LocationMocker Windows 安装与续签')
     parser.add_argument('--json', action='store_true')
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('devices')
+    free = commands.add_parser('free-renew', help='免费 Apple ID 安装或电脑端续签')
+    free.add_argument('--udid', required=True)
+    free.add_argument('--ipa', required=True)
+    free.add_argument('--helper', default=str(Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'locationmocker-free-sign.exe'))
+    free.add_argument('--anisette', default='')
     for name in ('prepare', 'install', 'renew', 'status'):
         command = commands.add_parser(name)
         command.add_argument('--udid', required=True)
@@ -228,7 +256,10 @@ def main(argv=None):
             command.add_argument('--zsign', default='zsign')
     args = parser.parse_args(argv)
     try:
-        result = devices() if args.command == 'devices' else prepare(args) if args.command == 'prepare' else status(args) if args.command == 'status' else sign_install(args)
+        if args.command == 'free-renew':
+            result = free_renew(args)
+        else:
+            result = devices() if args.command == 'devices' else prepare(args) if args.command == 'prepare' else status(args) if args.command == 'status' else sign_install(args)
         print(json.dumps({'ok': True, 'result': result}, ensure_ascii=False))
         return 0
     except InstallError as error:
