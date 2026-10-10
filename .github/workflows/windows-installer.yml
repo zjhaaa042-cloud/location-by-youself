@@ -1,0 +1,38 @@
+name: Windows installer
+on:
+  push:
+    paths: ['windows/**', '.github/workflows/windows-installer.yml']
+  pull_request:
+    paths: ['windows/**', '.github/workflows/windows-installer.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-installer-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  test-and-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r windows/requirements.txt pyinstaller==6.16.0
+      - run: python -m unittest discover -s windows -p 'test_*.py' -v
+      - run: python windows/installer.py --help
+      - run: rustup update stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            windows/free-sign/target
+          key: windows-free-sign-${{ hashFiles('windows/free-sign/Cargo.toml') }}
+      - run: cargo build --release --manifest-path windows/free-sign/Cargo.toml
+      - run: .\windows\free-sign\target\release\locationmocker-free-sign.exe --help
+      - run: python -m PyInstaller --noconfirm --onedir --name LocationMocker-Windows --collect-all pymobiledevice3 --collect-all cryptography --recursive-copy-metadata pymobiledevice3 --add-binary "windows/free-sign/target/release/locationmocker-free-sign.exe;." --add-data "windows/free-sign/UPSTREAM-LICENSE.txt;." windows/gui.py
+      - run: .\dist\LocationMocker-Windows\LocationMocker-Windows.exe --pmd usbmux --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocationMocker-Windows
+          path: dist/LocationMocker-Windows/
