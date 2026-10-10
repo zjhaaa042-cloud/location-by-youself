@@ -60,6 +60,11 @@ class InstallerTests(unittest.TestCase):
                 installer.run(['tool'])
             self.assertNotIn('private_key', str(error.exception))
 
+    def test_packaged_exe_dispatches_device_cli(self):
+        with patch.object(installer.sys, 'frozen', True, create=True), patch.object(installer, 'run', return_value=b'[]') as run:
+            installer.pmd('usbmux', 'list')
+            self.assertEqual(run.call_args.args[0][1:], ['--pmd', 'usbmux', 'list'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -7,6 +7,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: windows-installer-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 jobs:
   test-and-package:
     runs-on: windows-latest
@@ -19,6 +22,7 @@ jobs:
       - run: python -m unittest discover -s windows -p 'test_*.py' -v
       - run: python windows/installer.py --help
       - run: python -m PyInstaller --noconfirm --onedir --name LocationMocker-Windows --collect-all pymobiledevice3 --collect-all cryptography windows/gui.py
+      - run: .\dist\LocationMocker-Windows\LocationMocker-Windows.exe --pmd usbmux --help
       - uses: actions/upload-artifact@v4
         with:
           name: LocationMocker-Windows

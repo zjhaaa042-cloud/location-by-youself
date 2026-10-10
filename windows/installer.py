@@ -12,6 +12,9 @@ import sys
 import tempfile
 import zipfile
 
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 
 class InstallError(Exception):
     def __init__(self, code, message):
@@ -116,6 +119,7 @@ async def make_pairing(udid, output):
     from pymobiledevice3.remote.tunnel_service import RemotePairingLockdownService
     from pymobiledevice3.exceptions import RemotePairingCompletedError
     lockdown = await create_using_usbmux(serial=udid)
+    service = None
     try:
         service = await RemotePairingLockdownService.create(lockdown)
         try:
@@ -129,6 +133,8 @@ async def make_pairing(udid, output):
                                          'private_key': record['private_key'],
                                          'public_key': record['public_key']}))
     finally:
+        if service is not None:
+            await service.close()
         await lockdown.close()
 
 
