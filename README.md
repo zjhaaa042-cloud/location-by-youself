@@ -2,6 +2,8 @@
 
 LocationMocker 是一个实验性的 iOS 真机系统级定位模拟工具，支持固定点、路线回放和跑道跑步三种模式，不依赖越狱。定位通过 iOS 17+ 的 RemotePairing / CoreDevice / DTX LocationSimulation 链路注入，对所有使用 CoreLocation 的 App 生效。
 
+Windows 用户可使用项目的桌面安装器，通过免费 Apple ID 在电脑端安装和重签，无需 SideStore。入口见[Windows 安装与电脑端续签](#路径-bwindows-安装与电脑端续签)。
+
 > 仅用于自有设备的开发、测试和研究。请遵守当地法律、平台规则和第三方服务条款。
 
 ## 目录
@@ -62,6 +64,7 @@ LocationMocker
 - 一键定位到当前真实位置
 - 签名到期提醒：读取内嵌描述文件计算剩余天数，到期前 1 天本地通知 + 到期前 2 天 App 内横幅
 - 自然跑步速度与轻微轨迹漂移
+- 跑道模式持续循环，点击「停止」结束
 - 后台定位与静音音频保活
 - 一键停止：发送 `stopLocationSimulation` 后保持隧道 3 秒再断开
 - 诊断页与本地日志
@@ -72,12 +75,13 @@ LocationMocker
 - 固定点注入、路线游标、标准跑道回放和显式清除已接入主界面。
 - 模拟器单元测试 90+ 项全部通过（协议金样、SRP、TCP 校验和、坐标转换、路线与跑道几何、跑道收藏、签名到期解析）。
 - App 内自动挂载 Developer Disk Image 尚未完成，仍依赖 Xcode 挂载过一次。
+- Windows 安装器的七项测试、免费账号签名组件编译、EXE 打包和启动检查已通过；Windows + iPhone 的实际登录、安装、续签及注入仍待真机验收。
 
 ---
 
 ## 前提准备
 
-首次安装前需要备齐以下全部内容。之后的日常重签/重装只需要其中一小部分。
+Mac/Xcode 构建用户按本节准备环境和首次配对。Windows 用户直接按[路径 B](#路径-bwindows-安装与电脑端续签)准备驱动、IPA 和安装器；手机开发者模式、信任与定位注入所需的 LocalDevVPN/DDI 条件仍需满足。
 
 ### 1. Mac 端环境
 
@@ -150,7 +154,7 @@ RemotePairing 使用设备专属 Ed25519 私钥。仓库不会、也绝不能包
 
 ## 下载与安装
 
-提供两条路径。**路径 A** 最简单，适合日常开发调试，但每 7 天要手动重装一次；**路径 B** 一次配置后手机自动续签，彻底摆脱 7 天限制，推荐日常使用。
+提供两条路径：路径 A 用 Mac/Xcode 构建和安装；路径 B 用 Windows 安装器和免费 Apple ID 在电脑端重签。两条路径都受免费账号约 7 天的有效期限制，需要到期前续签。
 
 ### 路径 A：Xcode 直接构建安装
 
@@ -190,40 +194,37 @@ open LocationMocker.xcodeproj
 
   `YOUR_UDID` 用 `xcrun devicectl list devices` 查询；`YOUR_TEAM_ID` 在 Xcode「Signing & Capabilities」里选择 Team 后可从构建日志中查到。
 
-### 路径 B：SideStore 自动续签（推荐）
+### 路径 B：Windows 安装与电脑端续签
 
-免费账号的 7 天限制可以靠 [SideStore](https://sidestore.io) 解决：它把重签流程搬到手机上，到期前自动续期，日常使用完全无感。前提条件只有一个：手机定期连接 Wi-Fi（续签时 LocalDevVPN 需保持连接）。
+这条路径使用内置的免费 Apple ID 签名组件，完成设备注册、证书和描述文件申请、重签及安装。无需 SideStore，也无需手动导出 P12。它是交互式电脑续签，当前不提供后台定时刷新。
 
-**第 1 步：用 iLoader 安装 SideStore（iOS 26 推荐路径）**
+**准备和下载：**
 
-[iLoader](https://iloader.site) 是 SideStore 官方的新一代安装器，自动处理证书与配对文件，比 AltServer 省心得多：
+1. 使用 Windows 11，安装 Apple 设备驱动（Apple Devices 或 iTunes），用支持数据传输的 USB 线连接 iPhone。
+2. 手机开启开发者模式，解锁并确认「信任此电脑」。
+3. 打开 [Windows installer 构建页](https://github.com/zjhaaa042-cloud/location-by-youself/actions/workflows/windows-installer.yml)，选择 `ios` 分支最近一次成功运行，在 Artifacts 下载 `LocationMocker-Windows`。下载需要登录 GitHub，构建产物有保存期限。
+4. 完整解压下载包，运行 `LocationMocker-Windows.exe`。免费账号路径已内置签名组件，不需要额外安装 Python、zsign 或 OpenSSL。
+5. 准备可信的、由 Mac/Xcode 构建的原始 LocationMocker IPA；Windows 工具负责重签和安装，不编译 Swift 源码。当前不提供公共 IPA 下载。
 
-1. 下载 iLoader macOS 版并打开（首次打开如被 Gatekeeper 拦截，右键 → 打开）。
-2. **关闭 Mac 上的系统代理 / 代理客户端**。代理拦截 `gsa.apple.com` 认证会导致登录报 "The data is not in the correct format"。
-3. iLoader → Settings → **Anisette 服务器**：默认的 `ani.sidestore.io` 在中国大陆不可达，改用 `ani.stikstore.app`（实测可直连），否则登录超时（"deadline has elapsed"）。
-4. 登录 Apple ID（iLoader 凭据只发往苹果服务器，开源可审计）。
-5. USB 连接并解锁 iPhone，选择设备 → **「SideStore（稳定版）」**，等待签名、安装、配对文件注入自动完成。
+**首次安装：**
 
-**第 2 步：手机端初始化**
+1. 点击「检测手机」，确认目标 UDID；多台手机连接时填写要安装的那台设备 UDID。
+2. 选择原始 LocationMocker IPA，点击「免费 Apple ID：电脑安装 / 续签」。
+3. 在弹出的本地窗口输入自己的 Apple ID、密码和验证码；有多个团队时选择此次使用的团队。
+4. 等待窗口报告安装完成，再按手机提示信任开发者。界面显示「已打开续签窗口」只表示流程开始，最终结果以该窗口为准。
+5. 保持手机 Wi-Fi 和 LocalDevVPN 连接，打开 App 验证定位注入；安装完成不等于注入链路已经准备好。
 
-1. 设置 → 通用 → VPN与设备管理 → 信任新开发者证书。
-2. 手机连 Wi-Fi，打开 LocalDevVPN 保持连接（SideStore 续签走回环隧道）。
-3. 打开 SideStore → 登录 Apple ID → **Refresh Now**，全程不锁屏不切出；成功后 App 会自动退出，属正常。
-4. SideStore → My Apps → + → 导入 LocationMocker 的 IPA（见下）→ 弹窗选 **「Keep App Extensions (Use Main Profile)」**（包内是必需的 OpenSSL 框架，不能移除；该选项不额外占用 App ID 配额）。
+**日常续签：**
 
-**生成 LocationMocker.ipa**（交给 SideStore 托管用）：
+到期前重新连接 Windows，选择同一个原始 IPA、Apple ID 和团队，再点击「免费 Apple ID：电脑安装 / 续签」。流程重新获取签名材料并覆盖安装，不执行卸载。请勿把本工具已经重签过、带团队后缀的 IPA 再作为原始输入。
 
-```bash
-rm -rf /tmp/ipabuild && mkdir -p /tmp/ipabuild/Payload
-cp -R ~/Library/Developer/Xcode/DerivedData/LocationMocker-*/Build/Products/Debug-iphoneos/LocationMocker.app /tmp/ipabuild/Payload/
-(cd /tmp/ipabuild && zip -qr LocationMocker.ipa Payload)
-```
+首次从 Xcode 或其他签名工具迁移时，团队后缀可能使它成为一个独立 App，收藏及设置不会自动迁移。后续保持相同应用标识和团队才能覆盖更新。确认数据已保存前不要删除旧 App。
 
-IPA 内含本机的 RemotePairing 私钥，只传给自己手机，不要分享。
+密码和验证码不保存；证书、团队选择及登录辅助服务状态使用 Windows 凭据存储缓存。达到证书配额时工具会停止，需自行检查现有证书，不会自动撤销其他应用的证书。
 
-**之后的使用**：SideStore 会在后台自动续签它自己和其他托管 App。My Apps 里每个 App 旁显示剩余天数，某天看到天数又变回 7 天就是续签成功了。若意外过期：连 Wi-Fi + 开 LocalDevVPN → SideStore → My Apps → 点刷新即可。
+备用方案：点击「生成 iLoader 专用 IPA」，再在 [iLoader 官方项目](https://github.com/nab138/iloader)导入输出文件并使用同一账号重签安装。输出含设备配对私钥，仅供自己的手机使用。
 
-> SideStore 托管版的 Bundle ID 会带 Team ID 后缀（如 `com.zhangjiahui.locationmocker.G89NT3CMMF`），与 devicectl 直装版是两个独立 App。配置了 SideStore 后，旧的直装版可以删除。
+源码运行、命令行、已有 P12 的签名路径和详细限制见 [Windows 安装工具说明](windows/README.md)。P12 模式需要另行安装 zsign 和 OpenSSL。
 
 ---
 
@@ -241,12 +242,12 @@ IPA 内含本机的 RemotePairing 私钥，只传给自己手机，不要分享�
 ## 注意事项
 
 > [!WARNING]
-> **免费 Personal Team 签名 7 天后到期。** 到期后 App 无法打开（点图标闪退或提示「不再可用」），这不是 Bug。只要手机上还能看到图标，用 Xcode 重新点一次运行（▶︎）重装即可恢复，配对文件和 App 数据不受影响。**想彻底摆脱手动重签，请按上文「路径 B：SideStore 自动续签」配置**，之后由手机自动续期。
+> **免费 Personal Team 签名通常约 7 天到期。** 到期后 App 可能无法打开。使用 Mac/Xcode 重新运行安装，或使用 Windows 安装器重签。当前 Windows 续签需要连接电脑并交互登录，不会自动延长有效期。
 
 - **配对文件即私钥**：`pairing_record.mobiledevicepairing`、`rp_pairing_file.plist` 和打包出的 IPA 都含有设备私钥，绝不能上传到 Git、网盘或发给他人。泄露意味着对方可以伪装成你信任的电脑访问手机调试服务。
 - **模拟定位可能「粘住」**：异常断线后系统定位可能停留在模拟位置。务必使用 App 的「停止」显式清除，必要时重启手机。
 - **风控提醒**：部分应用（打卡、外卖、社交等）会结合基站、运动传感器、网络或账户风控交叉验证，单独修改 CoreLocation 不保证有效，且可能违反平台条款。请评估风险后使用。
-- **续签依赖 Wi-Fi + LocalDevVPN**：SideStore 自动续签走的是同一条回环隧道，手机长期不连 Wi-Fi 会导致续签失败直至过期。
+- **安装与注入分别验证**：Windows 续签需要设备连接和可用网络；定位注入仍需要手机 Wi-Fi、LocalDevVPN 和准备好的 DDI 开发者服务。
 
 ## 常见问题排查
 
@@ -255,16 +256,16 @@ IPA 内含本机的 RemotePairing 私钥，只传给自己手机，不要分享�
 - Xcode 中没有 iPhone：确认数据线支持数据、手机已解锁并已点「信任」，然后关闭并重新打开「Devices and Simulators」。
 - 提示 Developer Mode 未开启：按「前提准备」的步骤开启开发者模式并完成重启确认。
 - 提示 Provisioning Profile、Signing 或 Bundle Identifier 错误：选择正确的 Team，并换成未被占用的 Bundle Identifier。
-- 安装后立即退出或无法启动：在 iPhone「VPN 与设备管理」中信任开发者证书；若 7 天前安装过，就是签名到期，按「路径 A」重装。
+- 安装后立即退出或无法启动：检查开发者模式、开发者信任及签名到期状态；到期后按「路径 A」或「路径 B」重签安装。
 - 显示正在准备设备或无法挂载 Developer Disk Image：保持数据线连接、手机解锁、网络可用，等待 Xcode 完成后重试。
 
-**SideStore / iLoader 类**
+**Windows / 免费账号续签类**
 
-- AltServer/iLoader 登录报 "data is not in the correct format"：Mac 系统代理拦截了 `gsa.apple.com`，关闭代理客户端后重试。
-- iLoader 登录超时 "deadline has elapsed"：默认 anisette 服务器被墙，按上文换 `ani.stikstore.app`。
-- SideStore 刷新报 "could not determine this device's UDID" / "AFC was unable to manage files"：iOS 26 与老工具（jitterbugpair/pymobiledevice3）生成的配对文件不兼容，**用 iLoader 重装即可**（它会生成新格式配对文件）；同时保持手机解锁、LocalDevVPN 已连接。
-- 安装报 7460（已有生效证书）：在 SideStore Settings 里 Revoke All Certificates 后重试。
-- 安装报 7252（证书序列号不存在）：钥匙串残留已被注销的旧 Xcode 证书，执行 `security delete-certificate -c "Apple Development: <账号> (<TEAMID>)"` 删除后重试。
+- 检测不到手机：检查 Apple 驱动、数据线、设备解锁与「信任此电脑」，重新连接后再检测。
+- 登录超时或 `FREE_SIGN_FAILED`：检查验证码和网络；如默认登录辅助服务不可达，在界面填写兼容 Anisette v3 的 HTTPS 服务地址。请使用可信服务。
+- 显示证书配额已满：先检查已有证书及其关联应用；撤销证书可能影响其他应用，不要盲目批量撤销。
+- 提示缺少免费签名组件：完整解压官方构建产物，保留整个目录结构；不要只复制主 EXE。
+- 首次安装后多了另一个 LocationMocker：检查团队后缀与应用标识，按上文迁移说明处理。
 
 **注入 / 运行类**
 
@@ -276,7 +277,8 @@ IPA 内含本机的 RemotePairing 私钥，只传给自己手机，不要分享�
 
 - 纯手机端注入依赖 Wi-Fi 网络接口；关闭 Wi-Fi 时即使 LocalDevVPN 显示已连接，也可能无法完成系统定位注入。
 - App 内 DDI 自动挂载与断线自动重连尚未完成。
-- 免费开发者签名 7 天到期，到期后需重装（或配置 SideStore 自动续签）。
+- 免费开发者签名通常约 7 天到期，需要定期在电脑端重签；当前不提供后台无人值守续签。
+- Windows 安装器不构建 iOS App，也未实现 DDI 自动准备；Windows 真机续签与注入尚未完成验收。
 - `LocationMockerTunnel` 是付费开发者账号可用的自建 Network Extension 实验目标，默认未嵌入主 App。
 
 ---

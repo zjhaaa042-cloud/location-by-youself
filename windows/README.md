@@ -8,7 +8,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe windows\gui.py
 ```
 
-GitHub Actions 的 `Windows installer` 会运行测试并生成 `LocationMocker-Windows` 压缩产物；下载并解压整个目录后运行其中的 EXE。zsign 和 OpenSSL 需要另行安装，未随 EXE 分发。
+在 [Windows installer 构建页](https://github.com/zjhaaa042-cloud/location-by-youself/actions/workflows/windows-installer.yml)选择 `ios` 分支最近一次成功运行，下载 Artifacts 中的 `LocationMocker-Windows`，完整解压后运行 EXE。免费账号模式已内置签名组件；只有 P12 模式需要另行安装 zsign 和 OpenSSL。下载需要登录 GitHub，构建产物有保存期限。
 
 ## 免费 Apple ID
 
@@ -48,7 +48,7 @@ py windows\installer.py renew --udid YOUR_UDID --ipa LocationMocker.ipa --p12 de
 py windows\installer.py status --udid YOUR_UDID --ipa signed.ipa
 ```
 
-`install` 与 `renew` 都生成当前设备配对记录、校验描述文件、重签并覆盖安装，不执行卸载。使用相同 bundle identifier 和团队才能保留原应用数据；工具不提供跨团队的数据迁移。`status` 检查指定 IPA 的有效期，而非读取手机内 App 的实时到期日。JSON 输出只写 stdout，密码提示写 stderr。
+`install` 与 `renew` 都生成当前设备配对记录、校验描述文件、重签并覆盖安装，不执行卸载。使用相同 bundle identifier 和团队才能保留原应用数据；工具不提供跨团队的数据迁移。`status` 检查指定 IPA 的有效期，而非读取手机内 App 的实时到期日。普通命令的结果以 JSON 写入 stdout；`free-renew` 还会显示签名组件的交互提示，不能把整个输出当作纯 JSON 解析。
 
 ## 当前限制与验证
 
