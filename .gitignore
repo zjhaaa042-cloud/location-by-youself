@@ -32,3 +32,11 @@ Thumbs.db
 *.tmp.*
 __pycache__/
 *.py[cod]
+*.p12
+*.pfx
+*.mobileprovision
+*.ipa
+*.pem
+.venv/
+dist/
+*.spec

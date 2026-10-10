@@ -148,4 +148,4 @@ app status --udid <UDID>
 
 ## 本 PR 的范围
 
-本 PR 先提交方案和安全边界，不提交签名私钥、不提交设备配对文件，也不伪装成已经完成 Windows 真机安装。后续 PR 按上述实施拆分逐步交付 CLI、签名适配器和 GUI。
+本 PR 已提供 `windows/installer.py` CLI、`windows/gui.py` 桌面界面和 Windows 自动测试/打包。具体操作与已实现边界见 [Windows 安装工具](../windows/README.md)。免费 Apple ID 的证书申请和刷新由 iLoader/SideStore 负责；本工具可生成专属 IPA，并使用已有 P12 和有效描述文件直接重签安装。后台定时续签、凭据持久化和 DDI 自动准备仍待实现。当前未完成 Windows + iPhone 真机验收。
