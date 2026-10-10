@@ -240,7 +240,8 @@ def main(argv=None):
     free = commands.add_parser('free-renew', help='免费 Apple ID 安装或电脑端续签')
     free.add_argument('--udid', required=True)
     free.add_argument('--ipa', required=True)
-    free.add_argument('--helper', default=str(Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'locationmocker-free-sign.exe'))
+    helper_dir = Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).parent / 'free-sign' / 'target' / 'release'
+    free.add_argument('--helper', default=str(helper_dir / 'locationmocker-free-sign.exe'))
     free.add_argument('--anisette', default='')
     for name in ('prepare', 'install', 'renew', 'status'):
         command = commands.add_parser(name)
