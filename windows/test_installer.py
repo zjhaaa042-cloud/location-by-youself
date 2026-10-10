@@ -9,6 +9,14 @@ import installer
 
 
 class InstallerTests(unittest.TestCase):
+    def test_relative_signing_tool_resolves_before_changing_directory(self):
+        import subprocess
+        with patch.object(installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, b'')) as run:
+            installer.run(['./tools with spaces/zsign.exe', '-f'], cwd='/temporary/work')
+            self.assertEqual(run.call_args.args[0][0], str(Path('./tools with spaces/zsign.exe').resolve()))
+            installer.run(['zsign', '-f'], cwd='/temporary/work')
+            self.assertEqual(run.call_args.args[0][0], 'zsign')
+
     def profile(self):
         return {'ExpirationDate': dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=7),
                 'ProvisionedDevices': ['phone'], 'ApplicationIdentifierPrefix': ['TEAM'],

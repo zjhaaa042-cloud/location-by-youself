@@ -37,6 +37,7 @@ def main():
     output.grid(row=9, column=0, columnspan=3, sticky='nsew', pady=10)
     events = queue.Queue()
     buttons = []
+    busy = False
 
     def show(message):
         output.configure(state='normal')
@@ -45,6 +46,9 @@ def main():
         output.configure(state='disabled')
 
     def action(kind):
+        nonlocal busy
+        if busy:
+            return
         args = Namespace(**{k: v.get().strip() for k, v in values.items()})
         password = None
         if kind == 'free':
@@ -57,8 +61,19 @@ def main():
                 command.extend(['--anisette', args.anisette])
             flags = subprocess.CREATE_NEW_CONSOLE if sys.platform == 'win32' else 0
             try:
-                subprocess.Popen(command, creationflags=flags)
-                show('已打开免费账号续签窗口。请在该窗口输入 Apple ID、密码和验证码；以窗口最终结果为准。')
+                process = subprocess.Popen(command, creationflags=flags)
+                busy = True
+                for button in buttons:
+                    button.configure(state='disabled')
+                show('已打开免费账号续签窗口。请在该窗口输入 Apple ID、密码和验证码；完成前请勿关闭窗口。')
+                def wait_for_renewal():
+                    try:
+                        code = process.wait()
+                        events.put(('free', '免费续签流程已完成。', None) if code == 0 else
+                                   ('free', None, '免费续签失败或窗口被关闭，请检查续签窗口提示后重试。'))
+                    except Exception:
+                        events.put(('free', None, '无法确认续签结果，请检查手机后重试。'))
+                threading.Thread(target=wait_for_renewal, daemon=True).start()
             except OSError:
                 show('无法打开续签窗口，请使用命令行 free-renew。')
             return
@@ -70,6 +85,7 @@ def main():
             password = simpledialog.askstring('签名', 'P12 密码（留空表示无密码）', show='*')
             if password is None:
                 return
+        busy = True
         for button in buttons:
             button.configure(state='disabled')
         show('正在处理，请保持手机解锁并确认信任…')
@@ -105,8 +121,10 @@ def main():
     buttons.append(free_button)
 
     def poll():
+        nonlocal busy
         try:
             kind, result, error = events.get_nowait()
+            busy = False
             for button in buttons:
                 button.configure(state='normal')
             if error:
@@ -134,8 +152,6 @@ if __name__ == '__main__':
         runpy.run_module('pymobiledevice3', run_name='__main__')
     elif len(sys.argv) > 1 and sys.argv[1] == '--cli':
         code = installer.main(sys.argv[2:])
-        if 'free-renew' in sys.argv:
-            input('按回车关闭窗口…')
         sys.exit(code)
     else:
         main()

@@ -55,7 +55,8 @@ struct SimulationConfig: Codable {
     ) {
         self.points = points
         self.speedKmh = speedKmh
-        self.mode = mode
+        // Apply the closed-track policy to every simulation entry point.
+        self.mode = routeProfile == .trackRunning ? .loop : mode
         self.updateIntervalMs = updateIntervalMs
         self.routeProfile = routeProfile
     }

@@ -27,6 +27,10 @@ class InstallError(Exception):
 
 
 def run(command, timeout=120, cwd=None):
+    # Resolve explicit relative tool paths before subprocess changes directory.
+    command = list(command)
+    if cwd is not None and ('/' in str(command[0]) or '\\' in str(command[0])):
+        command[0] = str(Path(command[0]).resolve())
     try:
         result = subprocess.run(command, capture_output=True, timeout=timeout, cwd=cwd,
                                 env={**os.environ, 'PYTHONIOENCODING': 'utf-8'})

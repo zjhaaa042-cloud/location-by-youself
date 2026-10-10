@@ -227,12 +227,10 @@ final class MainViewModel: ObservableObject {
             return
         }
         guard !simulationControlsLocked else { return }
-        // 跑道是闭合路线，始终连续绕圈；普通自定义路线仍遵循“单次/循环/往返”设置。
-        let selectedMode: PlaybackMode = routeProfile == .trackRunning ? .loop : playbackMode
         let config = SimulationConfig(
             points: markers,
             speedKmh: speedKmh,
-            mode: selectedMode,
+            mode: playbackMode,
             updateIntervalMs: 1000,
             routeProfile: routeProfile
         )
@@ -244,7 +242,7 @@ final class MainViewModel: ObservableObject {
                     points: self.markers,
                     speedMs: RouteMath.speedKmhToMetersPerSecond(self.speedKmh),
                     bearing: 0,
-                    mode: selectedMode.rawValue
+                    mode: config.mode.rawValue
                 )
             }
         }
