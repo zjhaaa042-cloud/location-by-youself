@@ -4,6 +4,7 @@ import asyncio
 import datetime as dt
 import fnmatch
 import json
+import os
 import plistlib
 from pathlib import Path, PurePosixPath
 import stat
@@ -27,7 +28,8 @@ class InstallError(Exception):
 
 def run(command, timeout=120, cwd=None):
     try:
-        result = subprocess.run(command, capture_output=True, timeout=timeout, cwd=cwd)
+        result = subprocess.run(command, capture_output=True, timeout=timeout, cwd=cwd,
+                                env={**os.environ, 'PYTHONIOENCODING': 'utf-8'})
     except FileNotFoundError:
         raise InstallError('DEPENDENCY_MISSING', '缺少依赖工具，请检查安装路径。')
     except subprocess.TimeoutExpired:
