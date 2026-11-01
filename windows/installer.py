@@ -262,6 +262,7 @@ def main(argv=None):
     helper_dir = Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).parent / 'free-sign' / 'target' / 'release'
     free.add_argument('--helper', default=str(helper_dir / 'locationmocker-free-sign.exe'))
     free.add_argument('--anisette', default='')
+    free.add_argument('--pause-on-error', action='store_true', help='失败时保留交互窗口，按 Enter 后关闭')
     for name in ('prepare', 'install', 'renew', 'status'):
         command = commands.add_parser(name)
         command.add_argument('--udid', required=True)
@@ -286,6 +287,11 @@ def main(argv=None):
         print(json.dumps({'ok': False, 'code': error.code, 'message': str(error)}, ensure_ascii=False))
     except Exception:
         print(json.dumps({'ok': False, 'code': 'OPERATION_FAILED', 'message': '操作失败，请检查输入文件、驱动及设备信任状态。'}, ensure_ascii=False))
+    if args.command == 'free-renew' and args.pause_on_error:
+        try:
+            input('续签失败。请先查看上方错误；按 Enter 关闭此窗口。')
+        except EOFError:
+            pass
     return 1
 
 

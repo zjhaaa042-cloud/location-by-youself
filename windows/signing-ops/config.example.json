@@ -1,0 +1,14 @@
+{
+  "_comment": "Copy this file to config.json and fill in your own values. config.json is git-ignored.",
+  "workRoot": "C:\\path\\to\\your\\ios-project",
+  "pythonPath": "",
+  "ipaPath": "C:\\path\\to\\your\\ios-project\\local-deploy\\ipa\\MyApp.ipa",
+  "bundleId": "com.example.myapp.SUFFIX",
+  "appleId": "+8613800000000",
+  "teamId": "XXXXXXXXXX",
+  "anisetteServer": "ani3.stikstore.app",
+  "signedOn": "2026-01-01T00:00:00+08:00",
+  "validDays": 7,
+  "warnDays": 2,
+  "iloaderExe": ""
+}

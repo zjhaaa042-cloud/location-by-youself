@@ -1,2 +1,5 @@
-pymobiledevice3==9.36.0
+pymobiledevice3==9.36.2
+# The 9.x pairing client passes hex-encoded bytes to verify_proof.
+# srptools 2.x interprets bytes as raw proof data.
+srptools==1.0.1
 cryptography>=44,<47

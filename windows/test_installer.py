@@ -9,6 +9,13 @@ import installer
 
 
 class InstallerTests(unittest.TestCase):
+    def test_interactive_failure_waits_and_preserves_exit_code(self):
+        with patch.object(installer, 'free_renew', side_effect=installer.InstallError('PAIRING_FAILED', '配对失败')), \
+                patch('builtins.input', return_value='') as prompt, patch('builtins.print'):
+            code = installer.main(['free-renew', '--udid', 'phone', '--ipa', 'app.ipa', '--pause-on-error'])
+        self.assertEqual(code, 1)
+        prompt.assert_called_once()
+
     def test_relative_signing_tool_resolves_before_changing_directory(self):
         import subprocess
         with patch.object(installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, b'')) as run:

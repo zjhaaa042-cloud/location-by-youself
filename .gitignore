@@ -41,3 +41,13 @@ __pycache__/
 dist/
 *.spec
 windows/free-sign/target/
+setup-python.log
+
+# Local deployment artifacts
+local-deploy/
+
+# signing-ops local config and artifacts (contain account session / pairing data)
+windows/signing-ops/config.json
+windows/signing-ops/backups/
+windows/signing-ops/*.log
+windows/signing-ops/last-status.txt
