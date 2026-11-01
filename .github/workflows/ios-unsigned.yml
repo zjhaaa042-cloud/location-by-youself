@@ -1,0 +1,50 @@
+name: Build unsigned iOS IPA
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject device credentials in build inputs
+        shell: bash
+        run: |
+          if find LocationMocker -type f \( -iname '*pairing*.plist' -o -iname '*.mobiledevicepairing' -o -iname '*.mobileprovision' -o -iname '*.p12' \) | grep -q .; then
+            echo 'Device credentials must not be included in a shared IPA.'
+            exit 1
+          fi
+      - name: Generate project
+        run: |
+          xcodebuild -version
+          brew install xcodegen
+          cd LocationMocker
+          xcodegen generate
+      - name: Build device application without signing
+        run: |
+          xcodebuild -project LocationMocker/LocationMocker.xcodeproj \
+            -scheme LocationMocker -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+      - name: Package original IPA
+        run: |
+          mkdir -p package/Payload
+          cp -R build/Build/Products/Release-iphoneos/LocationMocker.app package/Payload/
+          test -f package/Payload/LocationMocker.app/LocationMocker
+          if find package -type f -iname '*pairing*.plist' | grep -q .; then
+            echo 'Unexpected pairing record in build output.'
+            exit 1
+          fi
+          cd package
+          ditto -c -k --keepParent Payload LocationMocker-original-unsigned.ipa
+          shasum -a 256 LocationMocker-original-unsigned.ipa > SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocationMocker-original-unsigned
+          path: |
+            package/LocationMocker-original-unsigned.ipa
+            package/SHA256.txt
+          if-no-files-found: error
+          retention-days: 7

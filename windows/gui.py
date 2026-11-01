@@ -11,7 +11,7 @@ from pathlib import Path
 import installer
 
 
-def main():
+def main(initial=None):
     root = tk.Tk()
     root.title('LocationMocker · Windows 安装与续签')
     root.geometry('750x570')
@@ -23,7 +23,7 @@ def main():
                                        ('zsign', 'zsign 路径'), ('openssl', 'OpenSSL 路径'),
                                        ('anisette', '登录辅助服务（可留空）'))):
         ttk.Label(frame, text=label).grid(row=row, column=0, sticky='w', pady=5)
-        value = tk.StringVar(value=name if name in ('zsign', 'openssl') else '')
+        value = tk.StringVar(value=(initial or {}).get(name, name if name in ('zsign', 'openssl') else ''))
         values[name] = value
         ttk.Entry(frame, textvariable=value, width=60).grid(row=row, column=1, sticky='ew')
         if name not in ('udid', 'anisette'):
@@ -56,7 +56,7 @@ def main():
                 show('请先检测手机并选择原始 LocationMocker IPA。')
                 return
             prefix = [sys.executable, '--cli'] if getattr(sys, 'frozen', False) else [sys.executable, str(Path(__file__).with_name('installer.py'))]
-            command = [*prefix, 'free-renew', '--udid', args.udid, '--ipa', args.ipa]
+            command = [*prefix, 'free-renew', '--udid', args.udid, '--ipa', args.ipa, '--pause-on-error']
             if args.anisette:
                 command.extend(['--anisette', args.anisette])
             flags = subprocess.CREATE_NEW_CONSOLE if sys.platform == 'win32' else 0
