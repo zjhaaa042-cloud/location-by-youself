@@ -6,6 +6,7 @@ import android.location.Location
 import android.location.LocationManager
 import android.location.provider.ProviderProperties
 import android.os.Build
+import android.os.Bundle
 import android.os.SystemClock
 import com.example.locationmocker.domain.geo.CoordinateTransform
 import com.example.locationmocker.domain.model.RoutePoint
@@ -15,6 +16,7 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.tasks.Tasks
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 
 class MockLocationController(context: Context) {
     private val locationManager = context.getSystemService(LocationManager::class.java)
@@ -215,11 +217,19 @@ class MockLocationController(context: Context) {
         if (supportsAltitude) {
             point.altitude?.let { altitude = it }
         }
-        accuracy = accuracyMeters
+        // 精度随帧轻微抖动：真实 GPS 的 hAcc 不会恒定在同一个数
+        accuracy = accuracyMeters + Random.nextFloat() * ACCURACY_JITTER_METERS
         speed = speedMetersPerSecond
         bearing = bearingDegrees
         time = System.currentTimeMillis()
         elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+        // 补齐真实 GPS 位置对象自带的卫星字段。
+        // 高德定位 SDK 会读 extras["satellites"]，缺失时按 <=0 判为无效位置。
+        extras = Bundle().apply {
+            putInt("satellites", MIN_SATELLITES + Random.nextInt(SATELLITE_SPAN))
+            putInt("maxCn0", MIN_MAX_CN0 + Random.nextInt(MAX_CN0_SPAN))
+            putInt("meanCn0", MIN_MEAN_CN0 + Random.nextInt(MEAN_CN0_SPAN))
+        }
     }
 
     private data class TestProviderSpec(
@@ -235,5 +245,15 @@ class MockLocationController(context: Context) {
     private companion object {
         private const val FUSED_PROVIDER_NAME = "fused"
         private const val FUSED_OPERATION_TIMEOUT_SECONDS = 3L
+
+        // 精度保持固定：地图按 accuracy 画精度圈，抖动会让圆圈肉眼可见地呼吸。
+        // 真实感由 extras 里的卫星字段承担，不靠这里制造抖动。
+        private const val ACCURACY_JITTER_METERS = 0f
+        private const val MIN_SATELLITES = 6
+        private const val SATELLITE_SPAN = 5
+        private const val MIN_MAX_CN0 = 20
+        private const val MAX_CN0_SPAN = 8
+        private const val MIN_MEAN_CN0 = 12
+        private const val MEAN_CN0_SPAN = 6
     }
 }
