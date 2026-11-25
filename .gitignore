@@ -8,3 +8,9 @@ local.properties
 *.aab
 captures/
 app/build/
+backup/
+*.keystore
+*.jks
+sideloadlydaemon.log
+monitor/*.tsv
+monitor/shots/

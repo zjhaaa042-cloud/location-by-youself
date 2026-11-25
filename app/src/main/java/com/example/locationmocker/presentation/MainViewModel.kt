@@ -1,5 +1,7 @@
 package com.example.locationmocker.presentation
 
+import com.example.locationmocker.domain.track.TRACK_MIN_SPEED_KMH
+import com.example.locationmocker.domain.track.TRACK_MAX_SPEED_KMH
 import android.Manifest
 import android.app.Application
 import android.app.AppOpsManager
@@ -16,12 +18,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.locationmocker.data.SettingsRepository
 import com.example.locationmocker.data.TrackDetector
+import com.example.locationmocker.data.FavoriteTrack
 import com.example.locationmocker.domain.model.PlaybackMode
 import com.example.locationmocker.domain.model.RoutePoint
 import com.example.locationmocker.domain.model.RouteProfile
 import com.example.locationmocker.domain.model.SimulationConfig
 import com.example.locationmocker.domain.model.SimulationState
 import com.example.locationmocker.domain.route.RouteMath
+import com.example.locationmocker.domain.track.CustomTrack
 import com.example.locationmocker.domain.track.SegmentedTrack
 import com.example.locationmocker.domain.track.TrackDetectionResult
 import com.example.locationmocker.domain.track.TrackOrientation
@@ -77,6 +81,7 @@ data class MainUiState(
     val traveledPoints: List<RoutePoint> = emptyList(),
     val trackState: TrackUiState = TrackUiState.NotSelected,
     val trackOrientation: TrackOrientation = TrackOrientation.Vertical,
+    val customTrack: CustomTrack? = null,
 ) {
     val selectedPoint: RoutePoint?
         get() = points.lastOrNull()
@@ -88,22 +93,39 @@ class MainViewModel(
 ) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
+    val favoriteTracks = settingsRepository.favoriteTracks
+
+    suspend fun saveFavoriteTrack(track: FavoriteTrack) = settingsRepository.saveFavoriteTrack(track)
+
 
     private val trackDetector = TrackDetector(application.applicationContext)
     private val trackRoutePlanner = TrackRoutePlanner()
 
     init {
         viewModelScope.launch {
+            var restoring = true
             settingsRepository.settings.collect { saved ->
                 _uiState.update {
                     it.copy(
-                        speedKmh = saved.speedKmh,
+                        editMode = if (restoring && saved.customTrack != null) EditMode.Track else it.editMode,
+                        speedKmh = if (it.editMode == EditMode.Track || (restoring && saved.customTrack != null)) {
+                            saved.speedKmh.coerceIn(TRACK_MIN_SPEED_KMH, TRACK_MAX_SPEED_KMH)
+                        } else {
+                            saved.speedKmh
+                        },
+                        customTrack = saved.customTrack,
+                        trackState = if (restoring && saved.customTrack != null && saved.trackCenter != null) {
+                            TrackUiState.Detected(saved.trackName, saved.trackCenter)
+                        } else {
+                            it.trackState
+                        },
                         playbackMode = saved.playbackMode,
                         points = saved.points,
                         trackOrientation = saved.trackOrientation,
                         simulationState = it.simulationState.preserveActiveOrReady(saved.points),
                     )
                 }
+                restoring = false
             }
         }
         viewModelScope.launch {
@@ -155,11 +177,12 @@ class MainViewModel(
     }
 
     fun setEditMode(mode: EditMode) {
+        if (_uiState.value.simulationState.isActive()) return
         _uiState.update {
             if (mode == EditMode.Track) {
                 it.copy(
                     editMode = mode,
-                    speedKmh = it.speedKmh.coerceIn(6f, 12f),
+                    speedKmh = it.speedKmh.coerceIn(TRACK_MIN_SPEED_KMH, TRACK_MAX_SPEED_KMH),
                     playbackMode = PlaybackMode.Loop,
                 )
             } else {
@@ -169,6 +192,7 @@ class MainViewModel(
     }
 
     fun onMapTapped(lat: Double, lon: Double, segmentedTrack: SegmentedTrack? = null) {
+        if (_uiState.value.simulationState.isActive()) return
         val newPoint = RoutePoint(lat = lat, lon = lon)
         val editMode = _uiState.value.editMode
         val updatedPoints = when (editMode) {
@@ -193,6 +217,27 @@ class MainViewModel(
         }
     }
 
+    fun saveCustomTrack(center: RoutePoint, settings: CustomTrack) {
+        val state = _uiState.value
+        if (!settings.valid || center.lat !in -89.0..89.0 || center.lon !in -180.0..180.0 || state.simulationState == SimulationState.Running ||
+            state.simulationState == SimulationState.Paused
+        ) return
+        val route = trackRoutePlanner.buildCustomRoute(center, settings)
+        val speed = state.speedKmh.coerceIn(TRACK_MIN_SPEED_KMH, TRACK_MAX_SPEED_KMH)
+        _uiState.update {
+            it.copy(
+                points = route,
+                editMode = EditMode.Track,
+                simulationState = SimulationState.Ready,
+                trackState = TrackUiState.Detected("自定义跑道", center),
+                customTrack = settings,
+                speedKmh = speed,
+                playbackMode = PlaybackMode.Loop,
+            )
+        }
+        viewModelScope.launch { settingsRepository.saveCustomTrack(center, settings, route, speed) }
+    }
+
     fun detectTrackNearSelected() {
         val point = _uiState.value.trackDetectionAnchor() ?: run {
             _uiState.update {
@@ -209,6 +254,7 @@ class MainViewModel(
 
     fun setTrackOrientation(orientation: TrackOrientation) {
         val state = _uiState.value
+        if (state.simulationState.isActive()) return
         val center = when (val trackState = state.trackState) {
             is TrackUiState.Detected -> trackState.center
             is TrackUiState.ReadyToDetect -> trackState.point
@@ -218,7 +264,10 @@ class MainViewModel(
         _uiState.update { it.copy(trackOrientation = orientation) }
         viewModelScope.launch { settingsRepository.saveTrackOrientation(orientation) }
 
-        if (state.editMode == EditMode.Track && center != null) {
+        if (state.editMode == EditMode.Track && center != null && state.customTrack != null) {
+            val angle = if (orientation == TrackOrientation.Horizontal) 0.0 else 90.0
+            saveCustomTrack(center, state.customTrack.copy(rotationDegrees = angle))
+        } else if (state.editMode == EditMode.Track && center != null) {
             val route = trackRoutePlanner.buildCounterClockwiseRoute(
                 center = center,
                 orientation = orientation,
@@ -241,6 +290,7 @@ class MainViewModel(
     }
 
     fun undoLastPoint() {
+        if (_uiState.value.simulationState.isActive()) return
         val updated = _uiState.value.points.dropLast(1)
         _uiState.update {
             it.copy(
@@ -257,6 +307,7 @@ class MainViewModel(
     }
 
     fun clearPoints() {
+        if (_uiState.value.simulationState.isActive()) return
         _uiState.update {
             it.copy(
                 points = emptyList(),
@@ -270,7 +321,7 @@ class MainViewModel(
     fun setSpeed(speedKmh: Float) {
         val state = _uiState.value
         val clamped = if (state.editMode == EditMode.Track) {
-            speedKmh.coerceIn(6f, 12f)
+            speedKmh.coerceIn(TRACK_MIN_SPEED_KMH, TRACK_MAX_SPEED_KMH)
         } else {
             speedKmh.coerceIn(5f, 120f)
         }
@@ -335,8 +386,8 @@ class MainViewModel(
                     context,
                     SimulationConfig(
                         points = state.points,
-                        speedKmh = state.speedKmh.coerceIn(6f, 12f),
-                        mode = state.playbackMode,
+                        speedKmh = state.speedKmh.coerceIn(TRACK_MIN_SPEED_KMH, TRACK_MAX_SPEED_KMH),
+                        mode = PlaybackMode.Loop,
                         updateIntervalMs = TRACK_RUNNING_INTERVAL_MS,
                         routeProfile = RouteProfile.TrackRunning,
                     ),
@@ -393,6 +444,7 @@ class MainViewModel(
     }
 
     private fun detectTrack(origin: RoutePoint, segmentedTrack: SegmentedTrack? = null) {
+        if (_uiState.value.simulationState.isActive()) return
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
@@ -412,10 +464,11 @@ class MainViewModel(
                 _uiState.update {
                     it.copy(
                         points = route,
+                        customTrack = null,
                         trackState = TrackUiState.Detected("\u5730\u56fe\u5206\u5272\u8dd1\u9053", segmentedTrack.center),
                         simulationState = SimulationState.Ready,
                         playbackMode = PlaybackMode.Loop,
-                        speedKmh = it.speedKmh.coerceIn(6f, 12f),
+                        speedKmh = it.speedKmh.coerceIn(TRACK_MIN_SPEED_KMH, TRACK_MAX_SPEED_KMH),
                         trackOrientation = segmentedTrack.orientation,
                     )
                 }
@@ -508,6 +561,8 @@ private fun MainUiState.trackDetectionAnchor(): RoutePoint? {
     }
 }
 
+private fun SimulationState.isActive(): Boolean = this == SimulationState.Running || this == SimulationState.Paused
+
 private fun SimulationState.preserveActiveOrReady(points: List<RoutePoint>): SimulationState {
     return when (this) {
         SimulationState.Running,
@@ -527,4 +582,4 @@ class MainViewModelFactory(
     }
 }
 
-private const val TRACK_RUNNING_INTERVAL_MS = 250L
+private const val TRACK_RUNNING_INTERVAL_MS = 120L

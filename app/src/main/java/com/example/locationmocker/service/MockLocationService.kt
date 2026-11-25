@@ -1,5 +1,7 @@
 package com.example.locationmocker.service
 
+import com.example.locationmocker.domain.track.TRACK_MIN_SPEED_KMH
+import com.example.locationmocker.domain.track.TRACK_MAX_SPEED_KMH
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -153,7 +155,7 @@ class MockLocationService : Service() {
             null
         }
         val naturalCursor = if (routeProfile == RouteProfile.TrackRunning) {
-            NaturalRunCursor(points, mode, speedKmh.coerceIn(6f, 12f), effectiveIntervalMs)
+            NaturalRunCursor(points, mode, speedKmh.coerceIn(TRACK_MIN_SPEED_KMH, TRACK_MAX_SPEED_KMH), effectiveIntervalMs)
         } else {
             null
         }
@@ -204,7 +206,7 @@ class MockLocationService : Service() {
     }
 
     private fun updateSpeed(intent: Intent) {
-        val speedKmh = intent.getFloatExtra(EXTRA_SPEED_KMH, 8.5f).coerceIn(6f, 12f)
+        val speedKmh = intent.getFloatExtra(EXTRA_SPEED_KMH, 8.5f).coerceIn(TRACK_MIN_SPEED_KMH, TRACK_MAX_SPEED_KMH)
         activeNaturalCursor?.updateBaseSpeedKmh(speedKmh)
     }
 
@@ -318,7 +320,7 @@ class MockLocationService : Service() {
         private const val KEY_FIXED_LONGITUDE = "fixed_longitude"
         private const val DEFAULT_INTERVAL_MS = 1_000L
         private const val FIXED_INTERVAL_MS = 250L
-        private const val TRACK_RUNNING_INTERVAL_MS = 250L
+        private const val TRACK_RUNNING_INTERVAL_MS = 120L
 
         const val ACTION_START_FIXED = "com.example.locationmocker.START_FIXED"
         const val ACTION_START_ROUTE = "com.example.locationmocker.START_ROUTE"
